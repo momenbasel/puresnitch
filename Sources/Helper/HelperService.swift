@@ -264,6 +264,10 @@ final class HelperService: NSObject, HelperProtocol, @unchecked Sendable {
 
 extension HelperService: NSXPCListenerDelegate {
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
+        guard Self.isTrustedClient(newConnection) else {
+            PSLog.error(PSLog.helper, "rejected XPC client failing the code requirement (pid \(newConnection.processIdentifier))")
+            return false
+        }
         newConnection.exportedInterface = HelperBridge.remoteInterface()
         newConnection.exportedObject = self
         newConnection.remoteObjectInterface = HelperBridge.exportedInterface()
@@ -277,4 +281,55 @@ extension HelperService: NSXPCListenerDelegate {
         newConnection.resume()
         return true
     }
+
+    /// This daemon runs as root and can rewrite the firewall, so it must not
+    /// take orders from just any local process. Accept only code signed by the
+    /// PureSnitch team with the app's identifier.
+    ///
+    /// Locally built (ad-hoc signed) helpers have no Team ID, and requiring one
+    /// there would make every development build unable to talk to itself, so the
+    /// check is enforced exactly when this helper is itself Developer ID signed
+    /// - i.e. in anything users receive.
+    static func isTrustedClient(_ connection: NSXPCConnection) -> Bool {
+        guard selfIsTeamSigned else { return true }
+
+        var code: SecCode?
+        let attributes: [String: Any]
+        if let tokenData = auditTokenData(for: connection) {
+            attributes = [kSecGuestAttributeAudit as String: tokenData]
+        } else {
+            attributes = [kSecGuestAttributePid as String: connection.processIdentifier]
+        }
+        guard SecCodeCopyGuestWithAttributes(nil, attributes as CFDictionary, [], &code) == errSecSuccess,
+              let code else { return false }
+
+        let requirementText = "anchor apple generic"
+            + " and identifier \"\(AppConstants.bundleIdGUI)\""
+            + " and certificate leaf[subject.OU] = \"\(AppConstants.teamID)\""
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString(requirementText as CFString, [], &requirement) == errSecSuccess,
+              let requirement else { return false }
+        return SecCodeCheckValidity(code, [], requirement) == errSecSuccess
+    }
+
+    /// NSXPCConnection exposes the audit token only through KVC; fall back to
+    /// the (racier) pid when that is unavailable.
+    private static func auditTokenData(for connection: NSXPCConnection) -> Data? {
+        guard connection.responds(to: NSSelectorFromString("auditToken")) else { return nil }
+        guard let value = connection.value(forKey: "auditToken") as? NSValue else { return nil }
+        var raw = audit_token_t()
+        value.getValue(&raw, size: MemoryLayout<audit_token_t>.size)
+        return withUnsafeBytes(of: &raw) { Data($0) }
+    }
+
+    /// True when this helper binary carries a Developer ID team identifier.
+    private static let selfIsTeamSigned: Bool = {
+        var code: SecStaticCode?
+        let url = URL(fileURLWithPath: CommandLine.arguments.first ?? "/") as CFURL
+        guard SecStaticCodeCreateWithPath(url, [], &code) == errSecSuccess, let code else { return false }
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let dict = info as? [String: Any] else { return false }
+        return (dict["teamid"] as? String)?.isEmpty == false
+    }()
 }
