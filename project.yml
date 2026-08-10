@@ -47,8 +47,8 @@ targets:
       properties:
         CFBundleName: PureSnitch
         CFBundleDisplayName: PureSnitch
-        CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.2.0"
+        CFBundleVersion: "2"
         LSMinimumSystemVersion: "13.0"
         LSUIElement: true
         NSHumanReadableCopyright: "© 2026 Moamen Basel. MIT License."
@@ -62,9 +62,13 @@ targets:
         com.apple.security.app-sandbox: false
         com.apple.security.network.client: true
         com.apple.security.network.server: true
-        com.apple.developer.networking.networkextension:
-          - content-filter-provider-systemextension
-        com.apple.developer.system-extension.install: true
+        # NOTE: com.apple.developer.networking.networkextension and
+        # com.apple.developer.system-extension.install are deliberately absent.
+        # They are restricted entitlements: without an Apple-issued
+        # provisioning profile embedded in the bundle, AMFI can refuse to start
+        # the process at all — the app simply never opens for the user. They
+        # come back only together with the two Developer ID profiles (app +
+        # extension); see docs/NETWORK-EXTENSION.md.
         com.apple.security.application-groups:
           - H3WXHVTP97.io.moamenbasel.puresnitch
     settings:
@@ -96,8 +100,9 @@ targets:
       - target: PureSnitchHelper
         embed: false
         link: false
-      - target: PureSnitchNetExt
-        embed: true
+      # PureSnitchNetExt is intentionally NOT embedded in the shipping build —
+      # embedding it requires the restricted entitlements above. Generate the
+      # firewall flavour with: xcodegen generate --spec project-netext.yml
 
   PureSnitchNetExt:
     type: system-extension
@@ -112,8 +117,8 @@ targets:
       properties:
         CFBundleName: PureSnitchNetExt
         CFBundleDisplayName: PureSnitch Network Extension
-        CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.2.0"
+        CFBundleVersion: "2"
         CFBundlePackageType: SYSX
         LSMinimumSystemVersion: "13.0"
         NSSystemExtensionUsageDescription: "PureSnitch filters per-app network connections."

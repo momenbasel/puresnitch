@@ -1,10 +1,10 @@
 import SwiftUI
+import ServiceManagement
 
 struct SettingsView: View {
     @EnvironmentObject var state: AppState
     @State private var doh = AppConstants.defaultDoHUpstream
-    @State private var startAtLogin = true
-    @State private var showAlertsOnAllSpaces = true
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
         TabView {
@@ -19,16 +19,65 @@ struct SettingsView: View {
     }
 
     private var generalTab: some View {
-        Form {
-            Toggle("Launch PureSnitch at login", isOn: $startAtLogin)
-            Toggle("Show alerts on all Spaces", isOn: $showAlertsOnAllSpaces)
-            Section("Mode") {
-                Picker("Default mode", selection: Binding(get: { state.mode }, set: { state.setMode($0) })) {
-                    Text("Alert").tag(AppMode.alert)
-                    Text("Silent Allow").tag(AppMode.silentAllow)
-                    Text("Silent Deny").tag(AppMode.silentDeny)
+        VStack(alignment: .leading, spacing: 0) {
+            HelperBanner()
+            Form {
+                Section("Privileged helper") {
+                    HStack {
+                        Text(helperSummary)
+                        Spacer()
+                        Button("Check Again") { state.helper.refreshInstallState(); state.helper.ping() }
+                    }
+                    if state.helperInstallState != .enabled {
+                        Button("Open Login Items…") { state.helper.openLoginItemsSettings() }
+                    }
+                }
+                Section("Menu bar") {
+                    Toggle("Show download and upload speeds in the menu bar",
+                           isOn: $state.showSpeedsInMenuBar)
+                }
+                Section("General") {
+                    Toggle("Launch PureSnitch at login", isOn: $launchAtLogin)
+                        .onChange(of: launchAtLogin) { newValue in setLaunchAtLogin(newValue) }
+                    Toggle("Show alerts on all Spaces", isOn: $state.showAlertsOnAllSpaces)
+                }
+                Section("Enforcement") {
+                    Toggle("Block traffic, don't just watch it", isOn: $state.enforcementEnabled)
+                        .disabled(!state.helperConnected)
+                    Text("Off by default. Turning this on lets PureSnitch load a pf firewall anchor and run a DNS proxy on port \(AppConstants.dnsProxyPort), which changes how this Mac resolves names and filters packets. Leave it off to use PureSnitch purely as a traffic monitor.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                Section("Mode") {
+                    Picker("Default mode", selection: Binding(get: { state.mode }, set: { state.setMode($0) })) {
+                        Text("Alert").tag(AppMode.alert)
+                        Text("Silent Allow").tag(AppMode.silentAllow)
+                        Text("Silent Deny").tag(AppMode.silentDeny)
+                    }
                 }
             }
+            .formStyle(.grouped)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var helperSummary: String {
+        switch state.helperInstallState {
+        case .enabled: return state.helperConnected ? "Connected" : "Approved, connecting…"
+        case .requiresApproval: return "Waiting for your approval"
+        case .notRegistered, .unknown: return "Not installed"
+        case .wrongLocation: return "Move PureSnitch to /Applications"
+        case .notFound: return "Missing from this build"
+        case .failed(let m): return "Failed: \(m)"
+        }
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled { try SMAppService.mainApp.register() }
+            else { try SMAppService.mainApp.unregister() }
+        } catch {
+            state.appendLog(level: "error", message: "Login item change failed: \(error.localizedDescription)")
+            launchAtLogin = SMAppService.mainApp.status == .enabled
         }
     }
 
@@ -43,8 +92,13 @@ struct SettingsView: View {
                 Text("https://dns.google/dns-query").font(.caption.monospaced())
             }
             Section("Local DNS proxy") {
-                Toggle("Use system DNS via PureSnitch (port 53)", isOn: .constant(true))
-                Text("PureSnitch installs itself as the system DNS resolver to intercept and filter domain lookups.")
+                HStack {
+                    Text("Status")
+                    Spacer()
+                    Text(state.dnsProxyEnabled ? "Running on port \(AppConstants.dnsProxyPort)" : "Not running")
+                        .foregroundColor(.secondary)
+                }
+                Text("The DNS proxy runs inside the privileged helper and filters domain lookups against the enabled blocklists. It reports as running only once the helper confirms it.")
                     .font(.caption).foregroundColor(.secondary)
             }
         }
@@ -56,6 +110,18 @@ struct SettingsView: View {
                 Text("Blocklists").font(.headline)
                 Spacer()
                 Button("Refresh All") { state.helper.refreshBlocklists() }
+            }
+            if state.blocklists.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("No blocklists loaded")
+                        .font(.body).foregroundColor(.secondary)
+                    Text(state.helperConnected
+                         ? "Press Refresh All to download the default blocklists."
+                         : "Blocklists live in the privileged helper. Approve the helper first — see the General tab.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.top, 8)
             }
             List(state.blocklists) { b in
                 HStack {
@@ -81,6 +147,10 @@ struct SettingsView: View {
     private var profilesTab: some View {
         VStack(alignment: .leading) {
             Text("Profiles").font(.headline)
+            if state.profiles.isEmpty {
+                Text("No profiles yet. Profiles come from the privileged helper's rule database.")
+                    .font(.caption).foregroundColor(.secondary)
+            }
             ForEach(state.profiles) { p in
                 HStack {
                     Image(systemName: p.icon)

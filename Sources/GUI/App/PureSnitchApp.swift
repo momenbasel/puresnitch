@@ -34,12 +34,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Seed the app-group snapshot so the network extension has rules to read.
         state.syncSharedRules()
 
-        // Per-process firewall (Network System Extension). Activation is a no-op
-        // unless this build embeds a signed, notarized extension installed in
-        // /Applications; it prompts the user for approval on first run.
+        // Per-process firewall (Network System Extension). `activate()` is a
+        // no-op unless this build embeds one — the monitor-only release does
+        // not, so no extension approval prompt appears.
         systemExtension = SystemExtensionManager(state: state)
         if ProcessInfo.processInfo.environment["PURESNITCH_DEMO"] != "1" {
             systemExtension.activate()
+        }
+
+        // A menu-bar-only app that shows nothing on first launch reads as
+        // broken. Open the monitor once so the helper-approval banner is
+        // actually seen.
+        if ProcessInfo.processInfo.environment["PURESNITCH_DEMO"] != "1",
+           !UserDefaults.standard.bool(forKey: "PSDidFirstRun") {
+            UserDefaults.standard.set(true, forKey: "PSDidFirstRun")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.windowManager.showNetworkMonitor()
+            }
         }
 
         if ProcessInfo.processInfo.environment["PURESNITCH_DEMO"] == "1" {

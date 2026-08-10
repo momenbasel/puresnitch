@@ -11,6 +11,8 @@ struct MenubarPopoverView: View {
             headerBar
                 .padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
 
+            HelperBanner(compact: true)
+
             trafficGraph
                 .padding(.horizontal, 12)
 
@@ -75,8 +77,8 @@ struct MenubarPopoverView: View {
                     }
                 }
             Spacer()
-            Button(action: {}) {
-                Image(systemName: "speaker.slash.fill")
+            Button(action: { close(); windows.showSettings() }) {
+                Image(systemName: "gearshape.fill")
                     .font(.system(size: 14))
                     .foregroundColor(PSTheme.textSecondary)
                     .frame(width: 32, height: 32)
@@ -84,7 +86,8 @@ struct MenubarPopoverView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
-            Button(action: {}) {
+            .help("PureSnitch Settings")
+            Button(action: { close(); windows.showNetworkMonitor() }) {
                 Image(systemName: "globe")
                     .font(.system(size: 14))
                     .foregroundColor(.white)
@@ -93,6 +96,7 @@ struct MenubarPopoverView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
+            .help("Network Monitor")
         }
     }
 

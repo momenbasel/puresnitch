@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="https://github.com/momenbasel/puresnitch/releases/latest"><img src="https://img.shields.io/github/v/release/momenbasel/puresnitch?style=flat-square&label=Download" alt="Latest Release"></a>
-  <img src="https://img.shields.io/badge/macOS-14.0+-blue?style=flat-square" alt="macOS 14.0+">
+  <img src="https://img.shields.io/badge/macOS-13.0+-blue?style=flat-square" alt="macOS 13.0+">
   <img src="https://img.shields.io/badge/Swift-5.10-orange?style=flat-square" alt="Swift 5.10">
   <img src="https://img.shields.io/badge/Notarized-Apple-success?style=flat-square" alt="Notarized">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/momenbasel/puresnitch?style=flat-square" alt="MIT License"></a>
@@ -49,7 +49,9 @@ brew install --cask puresnitch
 
 Or download the signed, notarized `.dmg` from [Releases](https://github.com/momenbasel/puresnitch/releases/latest) and drag PureSnitch into `/Applications`. No Gatekeeper warnings, no quarantine workaround.
 
-First launch will ask you to approve the privileged helper in System Settings → General → Login Items & Extensions → Allow in Background.
+**PureSnitch has to live in `/Applications`.** macOS refuses to install background helpers for an app launched from the mounted disk image or from Downloads, so drag it across before opening it — PureSnitch will tell you if you forget.
+
+On first launch it registers a privileged helper and opens the Network Monitor with a banner asking you to approve it in **System Settings → General → Login Items & Extensions → Allow in the Background**. Until that switch is on, macOS blocks the helper and the app can't see any traffic. The window picks up on its own once you flip it; no relaunch needed.
 
 ### Build from source
 
@@ -166,9 +168,10 @@ The matcher walks enabled rules in `priority` order (DESC) and applies the first
 
 PureSnitch needs to install a small **privileged helper** at first launch in order to:
 
-- write `pfctl` rules to `/etc/pf.anchors/puresnitch`
-- bind `127.0.0.1:53` for the local DNS proxy
 - read per-process connection state via `nettop` and `lsof`
+- and, only if you turn on **Enforcement** in Settings: write `pfctl` rules to `/etc/pf.anchors/puresnitch` and bind `127.0.0.1:53` for the local DNS proxy
+
+Enforcement is **off by default**. Out of the box PureSnitch watches; it does not touch your firewall or your resolver until you ask it to.
 
 The helper is installed via `SMAppService.daemon`, the modern replacement for `SMJobBless`. macOS will surface it in **System Settings → General → Login Items & Extensions** as a service you can enable, disable or remove with a single switch. PureSnitch never asks for your password during normal operation; the helper handles privileged calls on its own through XPC.
 
@@ -177,7 +180,7 @@ What PureSnitch does **not** do:
 - It does not collect telemetry, crash reports, or usage analytics.
 - It does not require an account, license check, or any kind of identity.
 - It does not move data anywhere except the DoH resolver you pick and (optionally, toggle-able) ip-api.com for the world map.
-- It does not modify your system DNS settings until you flip the "use PureSnitch as system DNS" switch in Settings.
+- It does not modify your firewall or DNS settings until you turn on Enforcement in Settings.
 
 ## Screenshots
 
@@ -220,7 +223,7 @@ If per-process kernel filtering matters to you today, use **LuLu** — it's free
 
 **Why isn't per-process blocking at parity with Little Snitch?** Per-process blocking requires Apple's Network Extension entitlement, which is application-gated. The hook points exist in this codebase under `Sources/NetExt/`. The entitlement must be granted by Apple. Until then, blocking happens at DNS-level and packet-level (pfctl), which catches the overwhelming majority of unwanted traffic in practice — anything that resolves a hostname.
 
-**Will this run on Intel Macs?** The release DMG is built `arm64` only. To build for Intel, change `ARCHS` to `arm64 x86_64` in `project.yml` and rebuild.
+**Will this run on Intel Macs?** Yes. From v0.2.0 the release DMG is a universal binary (`arm64` + `x86_64`) with a macOS 13 (Ventura) minimum. v0.1.0 was arm64-only and would not launch on Intel at all.
 
 **How is it different from LuLu?** [LuLu](https://github.com/objective-see/LuLu) is excellent and has had the Network Extension entitlement for years. PureSnitch differs in: a Little Snitch-style UI (world map, traffic graph, mode picker), DoH out-of-the-box, an opinionated blocklist library, and a written-from-scratch rule engine. Try both; use whichever fits.
 

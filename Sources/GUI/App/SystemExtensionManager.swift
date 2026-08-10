@@ -76,7 +76,10 @@ final class SystemExtensionManager: NSObject, ObservableObject {
                     DispatchQueue.main.async {
                         if let saveError { self.fail("filter save: \(saveError.localizedDescription)"); return }
                         self.status = .active
-                        self.state?.helperConnected = true
+                        // Deliberately does NOT touch `helperConnected`: the
+                        // content filter and the privileged helper are separate
+                        // subsystems, and claiming the helper is up here made
+                        // the UI report "connected" while XPC was dead.
                         self.state?.appendLog(level: "info", message: "Per-process firewall active.")
                         self.registerIPC()
                     }

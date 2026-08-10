@@ -21,6 +21,8 @@ final class AppState: ObservableObject {
     @Published var incomingCount: Int = 0
     @Published var pendingAlerts: [PendingAlert] = []
     @Published var helperConnected: Bool = false
+    @Published var helperInstallState: HelperInstallState = .unknown
+    @Published var helperNeedsRepair: Bool = false
     @Published var pfctlEnabled: Bool = false
     @Published var dnsProxyEnabled: Bool = false
     @Published var logs: [LogEntry] = []
@@ -28,6 +30,40 @@ final class AppState: ObservableObject {
     @Published var topDomains: [DomainStats] = []
     @Published var topCountries: [CountryStats] = []
     @Published var searchQuery: String = ""
+
+    /// Menu-bar speed readout. Off by default: the status item is a plain
+    /// template glyph unless the user asks for numbers.
+    @Published var showSpeedsInMenuBar: Bool = UserDefaults.standard.bool(forKey: Prefs.showSpeeds) {
+        didSet { UserDefaults.standard.set(showSpeedsInMenuBar, forKey: Prefs.showSpeeds) }
+    }
+    @Published var showAlertsOnAllSpaces: Bool = UserDefaults.standard.object(forKey: Prefs.alertsAllSpaces) as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showAlertsOnAllSpaces, forKey: Prefs.alertsAllSpaces) }
+    }
+
+    /// pf anchor + DNS proxy. Off until the user asks for it.
+    @Published var enforcementEnabled: Bool = UserDefaults.standard.bool(forKey: Prefs.enforcement) {
+        didSet {
+            guard !suppressEnforcementSideEffect else { return }
+            UserDefaults.standard.set(enforcementEnabled, forKey: Prefs.enforcement)
+            helper.setEnforcementEnabled(enforcementEnabled)
+        }
+    }
+    private var suppressEnforcementSideEffect = false
+
+    /// Puts the toggle back where reality is after the helper refuses or rolls
+    /// back an enforcement change, without bouncing another request off it.
+    func setEnforcementFlagWithoutApplying(_ value: Bool) {
+        suppressEnforcementSideEffect = true
+        enforcementEnabled = value
+        suppressEnforcementSideEffect = false
+        UserDefaults.standard.set(value, forKey: Prefs.enforcement)
+    }
+
+    enum Prefs {
+        static let enforcement = "PSEnforcementEnabled"
+        static let showSpeeds = "PSShowSpeedsInMenuBar"
+        static let alertsAllSpaces = "PSShowAlertsOnAllSpaces"
+    }
 
     let helper = HelperClient()
     private let store: RuleStore? = {
@@ -77,10 +113,14 @@ final class AppState: ObservableObject {
         helper.state = self
     }
 
+    /// Runs once the helper is reachable. Monitoring only: enabling pf and the
+    /// DNS proxy rewrites the machine's firewall and resolver, so that stays an
+    /// explicit opt-in in Settings rather than something that happens the first
+    /// time the app launches.
     func bootstrap() {
         helper.startMonitoring()
-        helper.installPF()
         refreshRules()
+        if enforcementEnabled { helper.setEnforcementEnabled(true) }
     }
 
     func refreshRules() {

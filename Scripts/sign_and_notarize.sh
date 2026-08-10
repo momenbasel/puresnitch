@@ -11,16 +11,24 @@ NOTARY_PROFILE="puresnitch-notary"
 APP_ENT="$ROOT/Sources/GUI/PureSnitch.entitlements"
 HELPER_ENT="$ROOT/Sources/Helper/Helper.entitlements"
 NETEXT_ENT="$ROOT/Sources/NetExt/NetExt.entitlements"
-VERSION="${VERSION:-0.1.0}"
+VERSION="${VERSION:-0.2.0}"
+NOTARIZE="${NOTARIZE:-1}"
 
 echo ">> Cleaning previous build…"
 rm -rf build/release
 mkdir -p artifacts
 
-echo ">> Building Release…"
+echo ">> Regenerating the Xcode project (it is not tracked in git)…"
+xcodegen generate
+
+echo ">> Building Release (universal)…"
 mkdir -p build/release
+# ARCHS must be passed on the command line: the project-level setting alone
+# still produced an arm64-only binary, which is how v0.1.0 shipped without an
+# Intel slice and simply refused to launch on Intel Macs.
 xcodebuild -project PureSnitch.xcodeproj -scheme PureSnitch -configuration Release \
   -derivedDataPath build/release \
+  ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
   CODE_SIGN_IDENTITY="$SIGN_ID" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$TEAM_ID" \
   OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" build > build/release/xcodebuild.log 2>&1
 
@@ -29,6 +37,18 @@ if [ ! -d "$APP_BUNDLE" ]; then
     tail -50 build/release/xcodebuild.log
     exit 1
 fi
+
+echo ">> Verifying the bundle a user actually gets…"
+HELPER_BIN="$APP_BUNDLE/Contents/MacOS/PureSnitchHelper"
+test -f "$HELPER_BIN" || { echo "ERROR: privileged helper missing from the bundle"; exit 1; }
+test -f "$APP_BUNDLE/Contents/Library/LaunchDaemons/io.moamenbasel.puresnitch.helper.plist" || { echo "ERROR: launchd plist missing"; exit 1; }
+test -f "$APP_BUNDLE/Contents/Resources/Assets.car" || { echo "ERROR: Assets.car missing - the app would have no icon"; exit 1; }
+test -f "$APP_BUNDLE/Contents/Resources/AppIcon.icns" || { echo "ERROR: AppIcon.icns missing"; exit 1; }
+for BIN in "$APP_BUNDLE/Contents/MacOS/PureSnitch" "$HELPER_BIN"; do
+  lipo -archs "$BIN" | grep -qw arm64   || { echo "ERROR: $BIN has no arm64 slice"; exit 1; }
+  lipo -archs "$BIN" | grep -qw x86_64  || { echo "ERROR: $BIN has no x86_64 slice"; exit 1; }
+done
+echo "   universal + icon + helper OK"
 
 echo ">> Stripping duplicate helper from Resources/ if any…"
 rm -f "$APP_BUNDLE/Contents/Resources/PureSnitchHelper"
@@ -68,11 +88,15 @@ ZIP="artifacts/PureSnitch-${VERSION}-notary.zip"
 rm -f "$ZIP"
 /usr/bin/ditto -c -k --keepParent "$APP_BUNDLE" "$ZIP"
 
-echo ">> Submitting to Apple notary…"
-xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+if [ "$NOTARIZE" = "1" ]; then
+  echo ">> Submitting to Apple notary…"
+  xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
 
-echo ">> Stapling notary ticket…"
-xcrun stapler staple "$APP_BUNDLE"
-xcrun stapler validate "$APP_BUNDLE"
+  echo ">> Stapling notary ticket…"
+  xcrun stapler staple "$APP_BUNDLE"
+  xcrun stapler validate "$APP_BUNDLE"
+else
+  echo ">> NOTARIZE=0 - skipping notarization (app will be Gatekeeper-blocked on other Macs)"
+fi
 
 echo ">> Done. Notarized app at $APP_BUNDLE"

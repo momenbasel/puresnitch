@@ -38,9 +38,8 @@ jobs:
           test -f "$APP/Contents/MacOS/PureSnitch"
           test -f "$APP/Contents/MacOS/PureSnitchHelper"
           test -f "$APP/Contents/Library/LaunchDaemons/io.moamenbasel.puresnitch.helper.plist"
-          test -d "$APP/Contents/Library/SystemExtensions/PureSnitchNetExt.systemextension"
           test -f "$APP/Contents/Resources/Assets.car"
-          echo "App bundle structure OK (helper + system extension + app icon)"
+          echo "App bundle structure OK (helper + app icon)"
 
   universal:
     runs-on: macos-15
@@ -70,11 +69,21 @@ jobs:
       - name: Verify universal slices (arm64 + x86_64)
         run: |
           APP=build/rel/Build/Products/Release/PureSnitch.app
-          EXT="$APP/Contents/Library/SystemExtensions/PureSnitchNetExt.systemextension/Contents/MacOS/PureSnitchNetExt"
-          for BIN in "$APP/Contents/MacOS/PureSnitch" "$APP/Contents/MacOS/PureSnitchHelper" "$EXT"; do
+          for BIN in "$APP/Contents/MacOS/PureSnitch" "$APP/Contents/MacOS/PureSnitchHelper"; do
             echo "== $BIN =="
             lipo -info "$BIN"
             lipo -archs "$BIN" | grep -qw arm64
             lipo -archs "$BIN" | grep -qw x86_64
           done
-          echo "Universal (arm64 + x86_64) verified for app, helper, and system extension"
+          echo "Universal (arm64 + x86_64) verified for app and helper"
+
+      - name: Verify no restricted entitlements leaked into the shipping build
+        run: |
+          APP=build/rel/Build/Products/Release/PureSnitch.app
+          ENT=$(codesign -d --entitlements - --xml "$APP" 2>/dev/null || true)
+          if echo "$ENT" | grep -q "com.apple.developer.networking.networkextension"; then
+            echo "ERROR: Network Extension entitlement present without a provisioning profile."
+            echo "Signed builds carrying it can be refused at launch by AMFI."
+            exit 1
+          fi
+          echo "No profile-gated entitlements in the shipping build"

@@ -20,12 +20,15 @@ struct RulesManagerView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar.frame(width: 220).background(PSTheme.bgSidebar)
-            Divider().background(PSTheme.stroke)
-            mainPane
-            Divider().background(PSTheme.stroke)
-            infoPane.frame(width: 240).background(PSTheme.bgSecondary)
+        VStack(spacing: 0) {
+            HelperBanner()
+            HStack(spacing: 0) {
+                sidebar.frame(width: 220).background(PSTheme.bgSidebar)
+                Divider().background(PSTheme.stroke)
+                mainPane
+                Divider().background(PSTheme.stroke)
+                infoPane.frame(width: 240).background(PSTheme.bgSecondary)
+            }
         }
         .background(PSTheme.bgPrimary)
         .preferredColorScheme(.dark)
@@ -221,7 +224,7 @@ struct RulesManagerView: View {
             return "This blocklist contains \(count) domain entries. Enable or refresh it in Settings → Blocklists."
         }
         if !state.helperConnected {
-            return "Rules are managed by the PureSnitch helper. Approve it in System Settings → General → Login Items, then reopen this window."
+            return "Rules are managed by the PureSnitch helper. Approve it in System Settings → General → Login Items — this window fills in on its own once it connects."
         }
         if state.rules.isEmpty {
             return "Rules are created automatically when you allow or deny a connection alert."

@@ -82,13 +82,26 @@ final class WindowManager {
         // Use `contentView` (NSHostingView) instead of `contentViewController`.
         // Assigning a hosting *controller* makes NSWindow resize itself to the
         // SwiftUI view's fitting size — which collapsed these windows to a
-        // sliver. A hosting *view* keeps the size we set here.
-        window.contentView = NSHostingView(rootView: content)
+        // sliver. A hosting *view* keeps the size we set here, but only if we
+        // also stop it exporting an intrinsic size: with `sizingOptions`
+        // left at its default the window grew to the content's ideal height
+        // (a 2101 pt tall Network Monitor) the moment a text-heavy banner was
+        // added to it.
+        let hosting = NSHostingView(rootView: content)
+        hosting.sizingOptions = []
+        hosting.autoresizingMask = [.width, .height]
+        window.contentView = hosting
         window.setContentSize(defaultSize)
 
-        // Persist + restore the window frame across launches.
+        // Persist + restore the window frame across launches. A stored frame
+        // from a broken build can be larger than the screen, so fall back to a
+        // centred default rather than restoring something unusable.
         window.setFrameAutosaveName(autosaveName)
-        if !window.setFrameUsingName(autosaveName) {
+        let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? .zero
+        if !window.setFrameUsingName(autosaveName)
+            || window.frame.width > visible.width + 1
+            || window.frame.height > visible.height + 1 {
+            window.setContentSize(defaultSize)
             window.center()
         }
 

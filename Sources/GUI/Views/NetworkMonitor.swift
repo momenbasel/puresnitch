@@ -8,16 +8,20 @@ struct NetworkMonitorView: View {
     @State private var searchText: String = ""
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-                .frame(width: 240)
-                .background(PSTheme.bgSidebar)
-            Divider().background(PSTheme.stroke)
-            mapPane
-            Divider().background(PSTheme.stroke)
-            summaryPane
-                .frame(width: 280)
-                .background(PSTheme.bgSecondary)
+        VStack(spacing: 0) {
+            HelperBanner()
+            HStack(spacing: 0) {
+                sidebar
+                    .frame(width: 240)
+                    .background(PSTheme.bgSidebar)
+                Divider().background(PSTheme.stroke)
+                mapPane
+                    .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+                Divider().background(PSTheme.stroke)
+                summaryPane
+                    .frame(width: 280)
+                    .background(PSTheme.bgSecondary)
+            }
         }
         .background(PSTheme.bgPrimary)
         .preferredColorScheme(.dark)
@@ -56,6 +60,18 @@ struct NetworkMonitorView: View {
         Group {
             if #available(macOS 14.0, *) {
                 ConnectionMapPane(connections: connectionsForMap())
+                    .overlay(alignment: .top) {
+                        if connectionsForMap().isEmpty {
+                            Text(state.helperConnected
+                                 ? "No located connections yet"
+                                 : "Waiting for the PureSnitch helper")
+                                .font(.system(size: 11))
+                                .foregroundColor(PSTheme.textPrimary)
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .background(.black.opacity(0.55), in: Capsule())
+                                .padding(.top, 10)
+                        }
+                    }
             } else {
                 legacyConnectionList
             }
@@ -157,17 +173,11 @@ struct NetworkMonitorView: View {
         Text(s).font(.system(size: 11, weight: .semibold)).foregroundColor(PSTheme.textMuted)
     }
 
+    /// Only connections we actually have coordinates for. The previous version
+    /// scattered pins at made-up latitudes when geolocation was missing, which
+    /// meant the map confidently showed traffic that never happened.
     private func connectionsForMap() -> [Connection] {
-        let valid = state.connections.filter { $0.latitude != nil && $0.longitude != nil }
-        if valid.isEmpty {
-            return state.connections.prefix(40).enumerated().map { i, c in
-                var copy = c
-                copy.latitude = 20 + Double((i * 17) % 60 - 30)
-                copy.longitude = Double((i * 41) % 360 - 180)
-                return copy
-            }
-        }
-        return valid
+        state.connections.filter { $0.latitude != nil && $0.longitude != nil }
     }
 }
 

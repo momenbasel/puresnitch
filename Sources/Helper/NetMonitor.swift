@@ -11,16 +11,23 @@ final class NetMonitor: @unchecked Sendable {
     private var lastIn: Int64 = 0
     private var lastOut: Int64 = 0
     private var lastSampleTime = Date()
+    private var hasBaseline = false
+    private var pending = ""
+    private var frame: [String] = []
+    private(set) var isRunning = false
 
     func start() {
         stop()   // idempotent: tear down any existing pollers before (re)starting
         startLsofPolling()
         startNettop()
+        isRunning = true
     }
 
     func stop() {
         lsofTimer?.cancel(); lsofTimer = nil
         nettopProc?.terminate(); nettopProc = nil
+        pending = ""; frame = []; hasBaseline = false
+        isRunning = false
     }
 
     private func startLsofPolling() {
@@ -131,35 +138,72 @@ final class NetMonitor: @unchecked Sendable {
         let pipe = Pipe(); p.standardOutput = pipe; p.standardError = Pipe()
         do { try p.run() } catch { PSLog.error(PSLog.netmon, "nettop failed: \(error)"); return }
         nettopProc = p
+        pending = ""; frame = []; hasBaseline = false; lastIn = 0; lastOut = 0
 
         pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             guard let self else { return }
             let data = handle.availableData
             if data.isEmpty { return }
             guard let s = String(data: data, encoding: .utf8) else { return }
-            self.parseNettop(s)
+            self.ingestNettop(s)
         }
     }
 
-    private func parseNettop(_ chunk: String) {
-        var totalIn: Int64 = 0
-        var totalOut: Int64 = 0
-        for line in chunk.split(separator: "\n") {
-            let parts = line.split(separator: ",")
-            guard parts.count >= 3 else { continue }
-            if let bin = Int64(parts[parts.count - 2]),
-               let bout = Int64(parts[parts.count - 1]) {
-                totalIn += bin
-                totalOut += bout
+    /// nettop writes one *frame* per interval: a `,bytes_in,bytes_out,` header
+    /// followed by one cumulative line per process. A pipe read is not a frame -
+    /// it can split mid-line or carry half a frame - so summing whatever arrived
+    /// and diffing it against the previous sum produced nonsense rates
+    /// (multi-GB/s spikes). Buffer, cut on the header, and only diff whole frames.
+    private func ingestNettop(_ chunk: String) {
+        pending += chunk
+        while let nl = pending.firstIndex(of: "\n") {
+            let line = String(pending[pending.startIndex..<nl])
+            pending = String(pending[pending.index(after: nl)...])
+            if line.hasPrefix(",bytes_in") {
+                if !frame.isEmpty { completeFrame(frame) }
+                frame = []
+            } else if !line.isEmpty {
+                frame.append(line)
             }
         }
+    }
+
+    private func completeFrame(_ lines: [String]) {
+        var totalIn: Int64 = 0
+        var totalOut: Int64 = 0
+        for line in lines {
+            let parts = line.split(separator: ",")
+            guard parts.count >= 3,
+                  let bin = Int64(parts[parts.count - 2]),
+                  let bout = Int64(parts[parts.count - 1]) else { continue }
+            totalIn += bin
+            totalOut += bout
+        }
         let now = Date()
+
+        // The first frame is only a baseline: nettop counters are cumulative
+        // since it started, so emitting a rate here would report the whole
+        // history as if it happened in one second.
+        guard hasBaseline else {
+            hasBaseline = true
+            lastIn = totalIn; lastOut = totalOut; lastSampleTime = now
+            return
+        }
+
         let dt = now.timeIntervalSince(lastSampleTime)
-        if dt < 0.4 { return }
-        let deltaIn = max(0, totalIn - lastIn)
-        let deltaOut = max(0, totalOut - lastOut)
+        guard dt >= 0.4 else { return }
+        // Counters only go up while nettop lives; a drop means processes exited,
+        // so treat it as a fresh baseline instead of a negative or huge delta.
+        guard totalIn >= lastIn, totalOut >= lastOut else {
+            lastIn = totalIn; lastOut = totalOut; lastSampleTime = now
+            return
+        }
+        let deltaIn = totalIn - lastIn
+        let deltaOut = totalOut - lastOut
         lastIn = totalIn; lastOut = totalOut; lastSampleTime = now
-        let sample = TrafficSample(timestamp: now, bytesIn: Int64(Double(deltaIn) / max(dt, 1)), bytesOut: Int64(Double(deltaOut) / max(dt, 1)))
+        let sample = TrafficSample(timestamp: now,
+                                   bytesIn: Int64(Double(deltaIn) / dt),
+                                   bytesOut: Int64(Double(deltaOut) / dt))
         onSample?(sample)
     }
 }

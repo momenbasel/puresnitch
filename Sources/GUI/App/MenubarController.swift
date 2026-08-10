@@ -16,9 +16,9 @@ final class MenubarController {
     }
 
     func install() {
-        statusItem = NSStatusBar.system.statusItem(withLength: 72)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
-            button.imagePosition = .imageLeft
+            button.imagePosition = .imageOnly
             button.action = #selector(handleClick(_:))
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -35,9 +35,16 @@ final class MenubarController {
 
         render()
 
-        trafficCancellable = state.$trafficHistory
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.render() }
+        // Redraw on traffic, on helper health changes (the glyph reflects it)
+        // and when the user toggles the speed readout in Settings.
+        trafficCancellable = Publishers.MergeMany(
+            state.$trafficHistory.map { _ in () }.eraseToAnyPublisher(),
+            state.$helperConnected.map { _ in () }.eraseToAnyPublisher(),
+            state.$helperInstallState.map { _ in () }.eraseToAnyPublisher(),
+            state.$showSpeedsInMenuBar.map { _ in () }.eraseToAnyPublisher()
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in self?.render() }
     }
 
     @objc private func handleClick(_ sender: AnyObject?) {
@@ -89,57 +96,47 @@ final class MenubarController {
     @objc private func modeDeny() { state.setMode(.silentDeny) }
     @objc private func quit() { NSApp.terminate(nil) }
 
+    /// Draws the status item the way AppKit expects: a template symbol that the
+    /// system recolours for light, dark, high-contrast and tinted menu bars.
+    /// The previous version hand-drew pink and blue text into a non-template
+    /// bitmap, which is what users saw as "the menu icon is 2 colours".
     private func render() {
         guard let button = statusItem.button else { return }
-        let image = makeStatusImage()
+
+        let healthy = state.helperConnected
+        let symbol = healthy ? "shield.lefthalf.filled" : "shield.slash"
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "PureSnitch")?
+            .withSymbolConfiguration(config)
+        image?.isTemplate = true
         button.image = image
-        button.imagePosition = .imageOnly
-        let formatter = NumberFormatter()
-        formatter.maximumFractionDigits = 1
-        button.toolTip = "↓ \(PSFormat.bytesPerSec(state.currentIn))  ↑ \(PSFormat.bytesPerSec(state.currentOut))"
+
+        if state.showSpeedsInMenuBar {
+            statusItem.length = NSStatusItem.variableLength
+            button.imagePosition = .imageLeft
+            button.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+            button.title = " ↓\(compactSpeed(state.currentIn))  ↑\(compactSpeed(state.currentOut))"
+        } else {
+            statusItem.length = NSStatusItem.squareLength
+            button.imagePosition = .imageOnly
+            button.title = ""
+        }
+
+        button.toolTip = tooltip
+        button.setAccessibilityLabel("PureSnitch — \(tooltip)")
     }
 
-    private func makeStatusImage() -> NSImage {
-        let history = Array(state.trafficHistory.suffix(20))
-        let inSpeed = state.currentIn
-        let outSpeed = state.currentOut
-        let inText = compactSpeed(inSpeed)
-        let outText = compactSpeed(outSpeed)
-        let size = NSSize(width: 80, height: 22)
-        let img = NSImage(size: size)
-        img.lockFocus()
-        defer { img.unlockFocus() }
-
-        // text
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .semibold),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.95)
-        ]
-        let inStr = NSAttributedString(string: inText, attributes: attrs.merging([.foregroundColor: NSColor(red: 1.0, green: 0.45, blue: 0.95, alpha: 1)]) { _, b in b })
-        let outStr = NSAttributedString(string: outText, attributes: attrs.merging([.foregroundColor: NSColor(red: 0.45, green: 0.65, blue: 1.0, alpha: 1)]) { _, b in b })
-        inStr.draw(at: NSPoint(x: 1, y: 11))
-        outStr.draw(at: NSPoint(x: 1, y: 1))
-
-        // bars
-        let barAreaX: CGFloat = 38
-        let barAreaW: CGFloat = 40
-        let barCount = min(8, max(history.count, 1))
-        let barW: CGFloat = (barAreaW - CGFloat(barCount - 1) * 1.0) / CGFloat(barCount)
-        let maxIn: CGFloat = max(1, CGFloat(history.map { $0.bytesIn }.max() ?? 1))
-        let maxOut: CGFloat = max(1, CGFloat(history.map { $0.bytesOut }.max() ?? 1))
-        for i in 0..<barCount {
-            guard i < history.count else { break }
-            let h = history[history.count - barCount + i]
-            let x = barAreaX + CGFloat(i) * (barW + 1)
-            let topH = min(10, CGFloat(h.bytesIn) / maxIn * 10)
-            let botH = min(10, CGFloat(h.bytesOut) / maxOut * 10)
-            NSColor(red: 1.0, green: 0.45, blue: 0.95, alpha: 1).setFill()
-            NSBezierPath(rect: NSRect(x: x, y: 11, width: barW, height: max(1, topH))).fill()
-            NSColor(red: 0.45, green: 0.65, blue: 1.0, alpha: 1).setFill()
-            NSBezierPath(rect: NSRect(x: x, y: 11 - max(1, botH), width: barW, height: max(1, botH))).fill()
+    private var tooltip: String {
+        guard state.helperConnected else {
+            switch state.helperInstallState {
+            case .requiresApproval: return "Waiting for approval in System Settings › Login Items"
+            case .wrongLocation: return "Move PureSnitch to your Applications folder"
+            case .notFound: return "Helper missing from this build"
+            case .failed(let m): return "Helper error: \(m)"
+            default: return "Helper not running — no traffic is being monitored"
+            }
         }
-        img.isTemplate = false
-        return img
+        return "↓ \(PSFormat.bytesPerSec(state.currentIn))  ↑ \(PSFormat.bytesPerSec(state.currentOut))"
     }
 
     private func compactSpeed(_ n: Int64) -> String {

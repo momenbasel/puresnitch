@@ -1,0 +1,35 @@
+# Per-process firewall flavour: the monitor app PLUS the Network System
+# Extension. This build requires two Apple-issued Developer ID provisioning
+# profiles (one for io.moamenbasel.puresnitch with the Network Extensions and
+# System Extension capabilities, one for io.moamenbasel.puresnitch.netext with
+# Network Extensions) embedded in the respective bundles. Without them macOS
+# refuses to launch the app, which is why the shipping DMG is built from
+# project.yml instead. See docs/NETWORK-EXTENSION.md.
+#
+#   xcodegen generate --spec project-netext.yml
+#
+include:
+  - project.yml
+
+targets:
+  PureSnitch:
+    entitlements:
+      path: Sources/GUI/PureSnitch-netext.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.network.client: true
+        com.apple.security.network.server: true
+        com.apple.developer.networking.networkextension:
+          - content-filter-provider-systemextension
+        com.apple.developer.system-extension.install: true
+        com.apple.security.application-groups:
+          - H3WXHVTP97.io.moamenbasel.puresnitch
+    settings:
+      base:
+        CODE_SIGN_ENTITLEMENTS: Sources/GUI/PureSnitch-netext.entitlements
+    dependencies:
+      - target: PureSnitchHelper
+        embed: false
+        link: false
+      - target: PureSnitchNetExt
+        embed: true

@@ -116,7 +116,7 @@ final class HelperService: NSObject, HelperProtocol, @unchecked Sendable {
     func getStatus(reply: @escaping (Data) -> Void) {
         let s = HelperStatus(
             version: AppConstants.version,
-            running: true,
+            running: netmon.isRunning,
             pfctlActive: pf.isLoaded,
             dnsProxyActive: dns.running,
             dnsProxyPort: Int(dns.port),
@@ -175,9 +175,30 @@ final class HelperService: NSObject, HelperProtocol, @unchecked Sendable {
         reply((try? JSONEncoder().encode(rules)) ?? Data())
     }
 
+    /// Passive monitoring only. Starting the DNS proxy (which binds port 53 and
+    /// takes over name resolution) and loading the pf anchor are *enforcement*
+    /// and are gated behind setEnforcementEnabled — a monitor should never
+    /// silently reconfigure the user's networking.
     func startMonitoring(reply: @escaping (Bool, String?) -> Void) {
         netmon.start()
-        do { try dns.start(port: AppConstants.dnsProxyPort); reply(true, nil) } catch { reply(false, "\(error)") }
+        reply(true, nil)
+    }
+
+    func setEnforcementEnabled(_ enabled: Bool, reply: @escaping (Bool, String?) -> Void) {
+        if enabled {
+            do {
+                try pf.install()
+                try dns.start(port: AppConstants.dnsProxyPort)
+                reply(true, nil)
+            } catch {
+                _ = try? pf.uninstall()
+                dns.stop()
+                reply(false, "\(error)")
+            }
+        } else {
+            dns.stop()
+            do { try pf.uninstall(); reply(true, nil) } catch { reply(false, "\(error)") }
+        }
     }
 
     func stopMonitoring(reply: @escaping (Bool, String?) -> Void) {
