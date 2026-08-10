@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 final class HelperService: NSObject, HelperProtocol, @unchecked Sendable {
     private let store: RuleStore
@@ -151,7 +152,12 @@ final class HelperService: NSObject, HelperProtocol, @unchecked Sendable {
             let rule = try JSONDecoder().decode(Rule.self, from: ruleJSON)
             try store.upsertRule(rule)
             dns.rules = store.allRules()
-            try? pf.applyRules(dns.rules)
+            // Saved but not enforced is a real difference; say so instead of
+            // reporting plain success.
+            do { try applyRulesIfEnforcing() } catch {
+                reply(false, "rule saved but the firewall refused it: \(error)")
+                return
+            }
             reply(true, nil)
         } catch {
             reply(false, "\(error)")
@@ -163,7 +169,10 @@ final class HelperService: NSObject, HelperProtocol, @unchecked Sendable {
         do {
             try store.deleteRule(id: id)
             dns.rules = store.allRules()
-            try? pf.applyRules(dns.rules)
+            do { try applyRulesIfEnforcing() } catch {
+                reply(false, "rule removed but the firewall refused the update: \(error)")
+                return
+            }
             reply(true, nil)
         } catch {
             reply(false, "\(error)")
@@ -182,6 +191,13 @@ final class HelperService: NSObject, HelperProtocol, @unchecked Sendable {
     func startMonitoring(reply: @escaping (Bool, String?) -> Void) {
         netmon.start()
         reply(true, nil)
+    }
+
+    /// pf only has an anchor loaded while enforcement is on; pushing rules at it
+    /// otherwise is both pointless and a source of phantom errors.
+    private func applyRulesIfEnforcing() throws {
+        guard pf.isLoaded else { return }
+        try pf.applyRules(dns.rules)
     }
 
     func setEnforcementEnabled(_ enabled: Bool, reply: @escaping (Bool, String?) -> Void) {
@@ -291,7 +307,16 @@ extension HelperService: NSXPCListenerDelegate {
     /// check is enforced exactly when this helper is itself Developer ID signed
     /// - i.e. in anything users receive.
     static func isTrustedClient(_ connection: NSXPCConnection) -> Bool {
-        guard selfIsTeamSigned else { return true }
+        switch selfSigningTeam {
+        case .failure:
+            // We could not read our own signature. That should never happen, so
+            // treat it as hostile rather than waving every client through.
+            return false
+        case .success(let team) where team == nil:
+            return true          // ad-hoc/local development build
+        case .success:
+            break
+        }
 
         var code: SecCode?
         let attributes: [String: Any]
@@ -322,14 +347,23 @@ extension HelperService: NSXPCListenerDelegate {
         return withUnsafeBytes(of: &raw) { Data($0) }
     }
 
-    /// True when this helper binary carries a Developer ID team identifier.
-    private static let selfIsTeamSigned: Bool = {
-        var code: SecStaticCode?
-        let url = URL(fileURLWithPath: CommandLine.arguments.first ?? "/") as CFURL
-        guard SecStaticCodeCreateWithPath(url, [], &code) == errSecSuccess, let code else { return false }
+    /// This helper's own team identifier: `nil` for an ad-hoc/local build,
+    /// a failure if the signature cannot be read at all.
+    private static let selfSigningTeam: Result<String?, NSError> = {
+        var code: SecCode?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else {
+            return .failure(NSError(domain: NSOSStatusErrorDomain, code: -1))
+        }
+        var staticCode: SecStaticCode?
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else {
+            return .failure(NSError(domain: NSOSStatusErrorDomain, code: -2))
+        }
         var info: CFDictionary?
-        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
-              let dict = info as? [String: Any] else { return false }
-        return (dict["teamid"] as? String)?.isEmpty == false
+        guard SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let dict = info as? [String: Any] else {
+            return .failure(NSError(domain: NSOSStatusErrorDomain, code: -3))
+        }
+        let team = dict["teamid"] as? String
+        return .success((team?.isEmpty ?? true) ? nil : team)
     }()
 }

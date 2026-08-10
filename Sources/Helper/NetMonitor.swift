@@ -44,8 +44,12 @@ final class NetMonitor: @unchecked Sendable {
         p.arguments = ["-i", "-n", "-P", "-F", "pcnT"]
         let pipe = Pipe(); p.standardOutput = pipe; p.standardError = Pipe()
         do { try p.run() } catch { return }
-        p.waitUntilExit()
+        // Drain the pipe BEFORE waiting. `lsof -i` on a busy Mac easily exceeds
+        // the 64 KB pipe buffer, and waiting first deadlocks the monitor queue
+        // permanently: lsof blocks writing, we block waiting, and the
+        // connection list never updates again.
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
         guard let txt = String(data: data, encoding: .utf8) else { return }
 
         var conns: [Connection] = []

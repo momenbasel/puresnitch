@@ -38,7 +38,6 @@ final class HelperClient: NSObject, ObservableObject {
     }
 
     private var connection: NSXPCConnection?
-    private var didBootstrap = false
     private var pollTimer: Timer?
     private var isRepairing = false
     private var enabledButSilentSince: Date?
@@ -226,15 +225,12 @@ final class HelperClient: NSObject, ObservableObject {
         connected = value
         state?.helperConnected = value
         guard value, !wasConnected else { return }
-        // First reachable connection runs the full bootstrap; later
-        // reconnections only refresh rules so we don't re-run startMonitoring /
-        // installPF and duplicate the helper's monitors.
-        if didBootstrap {
-            state?.refreshRules()
-        } else {
-            didBootstrap = true
-            state?.bootstrap()
-        }
+        // Every fresh connection re-runs the bootstrap. A helper that just
+        // restarted (crash, repair, reboot) has no monitor running and no
+        // enforcement applied, so only refreshing rules here left the app
+        // showing a live-looking UI backed by nothing. NetMonitor.start() and
+        // the enforcement call are both idempotent.
+        state?.bootstrap()
     }
 
     func ping() {
@@ -290,7 +286,17 @@ final class HelperClient: NSObject, ObservableObject {
     }
 
     func setEnforcementEnabled(_ enabled: Bool) {
-        remote?.setEnforcementEnabled(enabled) { [weak self] ok, message in
+        // A transport failure has to roll the UI back too, otherwise the toggle
+        // claims enforcement that no daemon ever heard about.
+        let proxy = connection?.remoteObjectProxyWithErrorHandler { [weak self] error in
+            Task { @MainActor in
+                guard let self else { return }
+                self.state?.appendLog(level: "error",
+                                      message: "Enforcement change never reached the helper: \(error.localizedDescription)")
+                self.state?.setEnforcementFlagWithoutApplying(!enabled)
+            }
+        } as? HelperProtocol
+        proxy?.setEnforcementEnabled(enabled) { [weak self] ok, message in
             guard !ok else { return }
             Task { @MainActor in
                 guard let self else { return }
