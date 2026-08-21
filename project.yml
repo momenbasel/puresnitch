@@ -73,6 +73,11 @@ targets:
           - H3WXHVTP97.io.moamenbasel.puresnitch
     settings:
       base:
+        # Xcode 27 no longer falls back to the target name here: without an
+        # explicit PRODUCT_NAME the Swift module name resolves to "" and the
+        # build fails with 'Module name "" is not a valid identifier'.
+        PRODUCT_NAME: PureSnitch
+        PRODUCT_MODULE_NAME: PureSnitch
         PRODUCT_BUNDLE_IDENTIFIER: io.moamenbasel.puresnitch
         INFOPLIST_KEY_LSUIElement: YES
         CODE_SIGN_IDENTITY: "Developer ID Application: Moamen Basel (H3WXHVTP97)"
