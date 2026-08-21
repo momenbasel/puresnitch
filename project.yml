@@ -12,7 +12,7 @@ options:
 settings:
   base:
     DEVELOPMENT_TEAM: H3WXHVTP97
-    SWIFT_VERSION: "5.10"
+    SWIFT_VERSION: "5.0"
     ENABLE_HARDENED_RUNTIME: YES
     CODE_SIGN_STYLE: Manual
     MACOSX_DEPLOYMENT_TARGET: "13.0"
@@ -47,13 +47,11 @@ targets:
       properties:
         CFBundleName: PureSnitch
         CFBundleDisplayName: PureSnitch
-        CFBundleShortVersionString: "0.2.0"
-        CFBundleVersion: "2"
+        CFBundleShortVersionString: "0.2.1"
+        CFBundleVersion: "3"
         LSMinimumSystemVersion: "13.0"
         LSUIElement: true
         NSHumanReadableCopyright: "© 2026 Moamen Basel. MIT License."
-        NSAppTransportSecurity:
-          NSAllowsArbitraryLoads: true
         NSPrincipalClass: NSApplication
         LSApplicationCategoryType: public.app-category.utilities
     entitlements:
@@ -122,8 +120,8 @@ targets:
       properties:
         CFBundleName: PureSnitchNetExt
         CFBundleDisplayName: PureSnitch Network Extension
-        CFBundleShortVersionString: "0.2.0"
-        CFBundleVersion: "2"
+        CFBundleShortVersionString: "0.2.1"
+        CFBundleVersion: "3"
         CFBundlePackageType: SYSX
         LSMinimumSystemVersion: "13.0"
         NSSystemExtensionUsageDescription: "PureSnitch filters per-app network connections."

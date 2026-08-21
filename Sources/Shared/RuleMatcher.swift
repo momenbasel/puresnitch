@@ -48,7 +48,7 @@ public struct RuleMatcher: Sendable {
         }
         if pattern.hasPrefix(".") {
             let suf = String(pattern.dropFirst())
-            return host.hasSuffix(suf)
+            return host == suf || host.hasSuffix("." + suf)
         }
         return false
     }
@@ -65,7 +65,7 @@ public struct RuleMatcher: Sendable {
 
     private func cidrContains(cidr: String, ip: String) -> Bool {
         let parts = cidr.split(separator: "/")
-        guard parts.count == 2, let bits = Int(parts[1]) else { return false }
+        guard parts.count == 2, let bits = Int(parts[1]), (0...32).contains(bits) else { return false }
         let net = String(parts[0])
         guard let a = ipv4ToUInt32(net), let b = ipv4ToUInt32(ip) else { return false }
         let mask: UInt32 = bits == 0 ? 0 : UInt32.max << (32 - bits)

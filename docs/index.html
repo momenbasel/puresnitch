@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PureSnitch — open-source application firewall for macOS</title>
-<meta name="description" content="Free, open-source application firewall for macOS. Little Snitch alternative with zero telemetry. Native SwiftUI world map, rules manager, DNS over HTTPS, pf-based blocking. Signed, notarized, MIT licensed.">
+<meta name="description" content="Free, open-source network monitor for macOS with opt-in pf rules, an experimental manual DNS-over-HTTPS proxy, and zero telemetry. Signed, notarized, MIT licensed.">
 <meta name="theme-color" content="#0f0a07">
 <link rel="canonical" href="https://momenbasel.github.io/puresnitch/">
 <link rel="icon" href="https://raw.githubusercontent.com/momenbasel/puresnitch/main/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128%402x.png">
@@ -27,14 +27,14 @@
   "@type": "SoftwareApplication",
   "name": "PureSnitch",
   "applicationCategory": "SecurityApplication",
-  "operatingSystem": "macOS 14+",
+  "operatingSystem": "macOS 13+",
   "downloadUrl": "https://github.com/momenbasel/puresnitch/releases/latest",
-  "softwareVersion": "0.1.0",
+  "softwareVersion": "0.2.1",
   "license": "https://opensource.org/licenses/MIT",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
   "url": "https://momenbasel.github.io/puresnitch/",
   "author": { "@type": "Person", "name": "Moamen Basel", "url": "https://github.com/momenbasel" },
-  "description": "Free, open-source application firewall for macOS. Little Snitch alternative with zero telemetry. Native SwiftUI world map, rules manager, DNS over HTTPS, pf-based blocking. Signed, notarized, MIT licensed.",
+  "description": "Free, open-source network monitor for macOS with opt-in pf rules, an experimental manual DNS-over-HTTPS proxy, and zero telemetry. Signed, notarized, MIT licensed.",
   "screenshot": "https://raw.githubusercontent.com/momenbasel/puresnitch/main/screenshot.png"
 }
 </script>
@@ -119,7 +119,7 @@ tailwind.config = {
     <div class="flex flex-col items-center text-center gap-6">
       <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-ember-500/10 border border-ember-500/30 text-ember-300 text-xs font-medium">
         <span class="w-1.5 h-1.5 rounded-full bg-ember-400 animate-pulse"></span>
-        v0.1.0 — signed, notarized, free
+        v0.2.1 — signed, notarized, universal
       </div>
       <h1 class="font-display font-bold text-5xl md:text-7xl tracking-tight max-w-4xl">
         See what your Mac is talking to.<br>
@@ -136,7 +136,7 @@ tailwind.config = {
         </a>
         <a href="#install"
            class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-coal-800/60 hover:bg-coal-800 border border-coal-700 text-white font-medium transition">
-          <span class="font-mono text-sm">brew install --cask puresnitch</span>
+          <span class="font-mono text-sm">brew trust momenbasel/puresnitch &amp;&amp; brew install --cask momenbasel/puresnitch/puresnitch</span>
         </a>
         <a href="https://github.com/momenbasel/puresnitch"
            class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-coal-800/30 hover:bg-coal-800/60 border border-coal-700/50 text-coal-200 font-medium transition">
@@ -145,8 +145,8 @@ tailwind.config = {
         </a>
       </div>
       <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 pt-6 text-xs text-coal-400">
-        <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>macOS 14+</span>
-        <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>Apple Silicon</span>
+        <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>macOS 13+</span>
+        <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>Apple Silicon + Intel</span>
         <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>Signed + Notarized</span>
         <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>MIT License</span>
         <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>No telemetry</span>
@@ -174,9 +174,9 @@ tailwind.config = {
     </div>
     <div class="grid md:grid-cols-3 gap-5">
       <div class="p-6 rounded-2xl border border-coal-800 bg-coal-900/50">
-        <div class="text-2xl font-display font-bold text-coal-100">$59</div>
+        <div class="text-2xl font-display font-bold text-coal-100">Paid</div>
         <h3 class="font-display font-semibold mt-3 text-lg text-white">Little Snitch</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Gold standard UI. World map, rules, alerts. $59 per Mac, every Mac.</p>
+        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Gold standard UI. World map, rules, alerts. Commercial software.</p>
       </div>
       <div class="p-6 rounded-2xl border border-coal-800 bg-coal-900/50">
         <div class="text-2xl font-display font-bold text-coal-100">Free</div>
@@ -195,7 +195,7 @@ tailwind.config = {
         <div>
           <h3 class="font-display font-bold text-2xl text-white">PureSnitch is the fourth choice.</h3>
           <p class="text-coal-200 mt-2 leading-relaxed">
-            Little Snitch UI muscle memory. LuLu's price. Native SwiftUI, not a port. Signed and notarized by Apple. Source on GitHub, MIT, zero telemetry. Built because no one else had built it.
+            Little Snitch UI muscle memory. LuLu's price. Native SwiftUI, not a port. Developer ID-signed and Apple-notarized. Source on GitHub, MIT, zero telemetry. Built because no one else had built it.
           </p>
         </div>
       </div>
@@ -216,8 +216,8 @@ tailwind.config = {
         <div class="w-11 h-11 rounded-xl bg-ember-500/15 border border-ember-500/30 flex items-center justify-center mb-4">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
         </div>
-        <h3 class="font-display font-semibold text-lg text-white">Network Monitor with world map</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Live map of every active connection. Sort by process, by domain, by country. Click any process to see its last five minutes of traffic.</p>
+        <h3 class="font-display font-semibold text-lg text-white">Network Monitor</h3>
+        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Live connections and process-level bandwidth with sorting and filtering. The map UI is present, but v0.2.1 does not perform live IP geolocation or per-connection byte accounting.</p>
       </div>
 
       <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
@@ -225,7 +225,7 @@ tailwind.config = {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
         </div>
         <h3 class="font-display font-semibold text-lg text-white">Rules Manager (LS-style)</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">All Rules, Active, Deny, Temporary, Unapproved categories. Glob hostnames, CIDR, port. Priority-ordered. Search every field.</p>
+        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Browse, search, toggle and delete stored rules across All Rules, Active, Deny, Temporary and Unapproved categories. In v0.2.1, new persistent rules come only from DNS-proxy alerts; general add/import/export controls are not implemented.</p>
       </div>
 
       <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
@@ -233,7 +233,7 @@ tailwind.config = {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
         </div>
         <h3 class="font-display font-semibold text-lg text-white">Connection Alerts</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Default-deny pops a clean popup. Allow / Deny. Remember. Scope: process / domain / IP / port. Duration: 5 min / 1 hr / forever.</p>
+        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Allow / Deny prompts for ask decisions from the manually configured DNS proxy. Passive app sockets are not paused; arbitrary per-process prompts require the non-shipping Network Extension build.</p>
       </div>
 
       <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
@@ -241,7 +241,7 @@ tailwind.config = {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         </div>
         <h3 class="font-display font-semibold text-lg text-white">DNS over HTTPS</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Built-in DoH to Cloudflare, Quad9, Google, or any endpoint. Local DNS proxy on 127.0.0.1:53 — every getaddrinfo passes through.</p>
+        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Experimental loopback proxy with DoH to Cloudflare, Quad9, Google, or a custom HTTPS endpoint. Clients must be configured manually; system DNS is unchanged.</p>
       </div>
 
       <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
@@ -249,7 +249,7 @@ tailwind.config = {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
         </div>
         <h3 class="font-display font-semibold text-lg text-white">Blocklists out of the box</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">1Hosts, OISD, StevenBlack, HaGeZi. Subscribe, refresh on schedule, audit matches. Bring your own list URLs too.</p>
+        <p class="text-coal-400 text-sm mt-2 leading-relaxed">1Hosts, OISD, StevenBlack and HaGeZi are included. Enabled built-in lists refresh at helper startup and on request. v0.2.1 cannot add custom blocklist URLs.</p>
       </div>
 
       <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
@@ -257,15 +257,15 @@ tailwind.config = {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         </div>
         <h3 class="font-display font-semibold text-lg text-white">pfctl kernel-level blocking</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">A puresnitch anchor in pfctl carries IP / CIDR / port rules. Kernel-level, regardless of which process initiated the connection.</p>
+        <p class="text-coal-400 text-sm mt-2 leading-relaxed">A runtime <code class="font-mono">com.apple/puresnitch</code> anchor carries validated, host-wide deny rules for IPv4 / CIDR / port targets. PureSnitch does not rewrite the active main ruleset.</p>
       </div>
 
       <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
         <div class="w-11 h-11 rounded-xl bg-ember-500/15 border border-ember-500/30 flex items-center justify-center mb-4">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
         </div>
-        <h3 class="font-display font-semibold text-lg text-white">Profiles that auto-switch</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Default, Home, Public Wi-Fi, Lockdown. Different rule sets per network. Switches automatically when the SSID changes.</p>
+        <h3 class="font-display font-semibold text-lg text-white">Organizational profiles</h3>
+        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Only Default is enforced in the shipping build. Home, Public Wi-Fi and Lockdown are stored labels; SSID-based switching is not implemented.</p>
       </div>
 
       <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
@@ -281,7 +281,7 @@ tailwind.config = {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </div>
         <h3 class="font-display font-semibold text-lg text-white">Zero telemetry</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">No analytics SDK. No crash reporter. No license check. Outbound is your DoH resolver + optional IP-to-country lookup (toggle-able).</p>
+        <p class="text-coal-400 text-sm mt-2 leading-relaxed">No analytics SDK, crash reporter, or license check. No live IP-geolocation requests. Network access is limited to enabled blocklist refreshes and explicitly proxied DNS.</p>
       </div>
     </div>
   </div>
@@ -299,13 +299,13 @@ tailwind.config = {
     <div class="grid md:grid-cols-3 gap-6">
       <div class="p-7 rounded-2xl border border-coal-800 bg-coal-900/40">
         <div class="text-ember-400 font-mono text-sm font-bold mb-3">01 / DNS</div>
-        <h3 class="font-display font-semibold text-xl text-white">DNS interception</h3>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">A local DNS proxy on <code class="text-ember-300 font-mono">127.0.0.1:53</code> answers every query. Blocklisted domains return NXDOMAIN; the rest forwards over DoH to the resolver you picked.</p>
+        <h3 class="font-display font-semibold text-xl text-white">Optional DNS proxy</h3>
+        <p class="text-coal-300 text-sm mt-3 leading-relaxed">An experimental loopback proxy answers requests from manually configured clients. Blocklisted domains return NXDOMAIN; the rest forwards over DoH. PureSnitch does not install it as the macOS resolver.</p>
       </div>
       <div class="p-7 rounded-2xl border border-coal-800 bg-coal-900/40">
         <div class="text-ember-400 font-mono text-sm font-bold mb-3">02 / pf</div>
         <h3 class="font-display font-semibold text-xl text-white">pfctl anchor</h3>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">A <code class="text-ember-300 font-mono">puresnitch</code> anchor in <code class="text-ember-300 font-mono">/etc/pf.conf</code> carries IP, CIDR and port rules. Kernel-level enforcement, independent of which process started the connection.</p>
+        <p class="text-coal-300 text-sm mt-3 leading-relaxed">A runtime <code class="text-ember-300 font-mono">com.apple/puresnitch</code> sub-anchor carries Default-profile, host-wide deny rules for IPv4, CIDR and port targets. It does not add declarations to <code class="text-ember-300 font-mono">/etc/pf.conf</code>.</p>
       </div>
       <div class="p-7 rounded-2xl border border-coal-800 bg-coal-900/40">
         <div class="text-ember-400 font-mono text-sm font-bold mb-3">03 / proc</div>
@@ -357,11 +357,11 @@ tailwind.config = {
           </tr>
         </thead>
         <tbody class="divide-y divide-coal-800/70">
-          <tr><td class="p-4 text-coal-200 font-medium">Price</td><td class="p-4 text-ember-300 font-medium">Free</td><td class="p-4 text-coal-300">$59 / Mac</td><td class="p-4 text-coal-300">Free</td><td class="p-4 text-coal-300">Bundled</td></tr>
+          <tr><td class="p-4 text-coal-200 font-medium">Price</td><td class="p-4 text-ember-300 font-medium">Free</td><td class="p-4 text-coal-300">Paid</td><td class="p-4 text-coal-300">Free</td><td class="p-4 text-coal-300">Bundled</td></tr>
           <tr><td class="p-4 text-coal-200 font-medium">License</td><td class="p-4 text-ember-300 font-medium">MIT, open source</td><td class="p-4 text-coal-300">Commercial</td><td class="p-4 text-coal-300">GPL, open source</td><td class="p-4 text-coal-300">Apple, closed</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">World map / traffic graph</td><td class="p-4 text-ember-300">✓</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-500">—</td><td class="p-4 text-coal-500">—</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">Rules manager (LS-style)</td><td class="p-4 text-ember-300">✓</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-300">basic</td><td class="p-4 text-coal-500">—</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">DNS proxy + DoH</td><td class="p-4 text-ember-300">✓</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-500">—</td><td class="p-4 text-coal-500">—</td></tr>
+          <tr><td class="p-4 text-coal-200 font-medium">Traffic graph / map UI</td><td class="p-4 text-ember-300">no live geo</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-500">—</td><td class="p-4 text-coal-500">—</td></tr>
+          <tr><td class="p-4 text-coal-200 font-medium">Rules browser</td><td class="p-4 text-ember-300">toggle/delete; alert-created rules</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-300">basic</td><td class="p-4 text-coal-500">—</td></tr>
+          <tr><td class="p-4 text-coal-200 font-medium">DNS proxy + DoH</td><td class="p-4 text-ember-300">experimental, manual</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-500">—</td><td class="p-4 text-coal-500">—</td></tr>
           <tr><td class="p-4 text-coal-200 font-medium">Blocklists out of the box</td><td class="p-4 text-ember-300">1Hosts, OISD, StevenBlack, HaGeZi</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-500">—</td><td class="p-4 text-coal-500">—</td></tr>
           <tr><td class="p-4 text-coal-200 font-medium">pf-based IP/CIDR blocking</td><td class="p-4 text-ember-300">✓</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-300">n/a</td><td class="p-4 text-coal-300">basic</td></tr>
           <tr><td class="p-4 text-coal-200 font-medium">Per-process kernel filtering</td><td class="p-4 text-coal-300">gated (NE entitlement)</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-500">—</td></tr>
@@ -370,7 +370,7 @@ tailwind.config = {
         </tbody>
       </table>
     </div>
-    <p class="text-coal-400 text-sm mt-6 text-center max-w-3xl mx-auto">If per-process kernel filtering is a hard requirement today, use <a href="https://github.com/objective-see/LuLu" class="text-ember-400 hover:underline">LuLu</a> — it's free, open source and has the Network Extension entitlement. If you want the Little Snitch UI without paying $59, PureSnitch is for you.</p>
+    <p class="text-coal-400 text-sm mt-6 text-center max-w-3xl mx-auto">If per-process kernel filtering is a hard requirement today, use <a href="https://github.com/objective-see/LuLu" class="text-ember-400 hover:underline">LuLu</a> — it's free, open source and has the Network Extension entitlement. If you want the Little Snitch UI without buying a commercial license, PureSnitch is for you.</p>
   </div>
 </section>
 
@@ -384,7 +384,7 @@ tailwind.config = {
     <div class="grid md:grid-cols-2 gap-6">
       <div class="rounded-2xl overflow-hidden border border-coal-800 bg-coal-900/40">
         <img src="https://raw.githubusercontent.com/momenbasel/puresnitch/main/docs/screenshot-monitor.png" alt="Network Monitor" class="w-full">
-        <div class="p-5"><h3 class="font-display font-semibold text-white">Network Monitor</h3><p class="text-coal-400 text-sm mt-1">Per-process bandwidth, world map, summary pane.</p></div>
+        <div class="p-5"><h3 class="font-display font-semibold text-white">Network Monitor</h3><p class="text-coal-400 text-sm mt-1">Process-level bandwidth, active connections, and summary pane. No live geolocation in v0.2.1.</p></div>
       </div>
       <div class="rounded-2xl overflow-hidden border border-coal-800 bg-coal-900/40">
         <img src="https://raw.githubusercontent.com/momenbasel/puresnitch/main/docs/screenshot-rules.png" alt="Rules Manager" class="w-full">
@@ -404,8 +404,8 @@ tailwind.config = {
     <div class="grid md:grid-cols-2 gap-5">
       <div class="p-6 rounded-2xl border border-coal-800 bg-coal-900/50">
         <h3 class="font-display font-semibold text-white text-lg mb-3">Homebrew</h3>
-        <pre class="rounded-xl bg-coal-950 p-4 font-mono text-sm text-coal-100 overflow-x-auto"><code>brew tap momenbasel/puresnitch
-brew install --cask puresnitch</code></pre>
+        <pre class="rounded-xl bg-coal-950 p-4 font-mono text-sm text-coal-100 overflow-x-auto"><code>brew trust momenbasel/puresnitch
+brew install --cask momenbasel/puresnitch/puresnitch</code></pre>
       </div>
       <div class="p-6 rounded-2xl border border-coal-800 bg-coal-900/50">
         <h3 class="font-display font-semibold text-white text-lg mb-3">Direct download</h3>
@@ -427,8 +427,13 @@ git clone https://github.com/momenbasel/puresnitch.git
 cd puresnitch
 xcodegen generate
 xcodebuild -project PureSnitch.xcodeproj -scheme PureSnitch \
-  -configuration Release -derivedDataPath build build
+  -configuration Release -derivedDataPath build \
+  CODE_SIGN_IDENTITY=&quot;-&quot; \
+  CODE_SIGNING_REQUIRED=NO \
+  CODE_SIGNING_ALLOWED=NO \
+  build
 open build/Build/Products/Release/PureSnitch.app</code></pre>
+      <p class="text-coal-400 text-xs mt-3">This certificate-free build launches the UI only. Live monitoring and enforcement require the privileged helper from the signed release or your own Developer ID signing setup.</p>
     </div>
   </div>
 </section>
@@ -447,23 +452,23 @@ open build/Build/Products/Release/PureSnitch.app</code></pre>
       </details>
       <details class="group p-5 rounded-2xl border border-coal-800 bg-coal-900/40">
         <summary class="cursor-pointer font-display font-semibold text-white flex items-center justify-between">Does PureSnitch send my traffic anywhere?<span class="text-ember-400 group-open:rotate-45 transition">+</span></summary>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">No. Your DNS queries leave only as far as the DoH upstream you pick (Cloudflare by default — override in Settings). No telemetry, no analytics, no phone-home. IP→country lookups for the world map go to ip-api.com (free tier) and can be disabled.</p>
+        <p class="text-coal-300 text-sm mt-3 leading-relaxed">PureSnitch has no telemetry, analytics, or phone-home service. It fetches enabled blocklists at helper startup and on request. DNS reaches a DoH upstream only for clients manually configured to use the experimental proxy. The current release makes no live IP-geolocation requests.</p>
       </details>
       <details class="group p-5 rounded-2xl border border-coal-800 bg-coal-900/40">
         <summary class="cursor-pointer font-display font-semibold text-white flex items-center justify-between">Why isn't per-process blocking at parity with Little Snitch?<span class="text-ember-400 group-open:rotate-45 transition">+</span></summary>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">Per-process blocking requires Apple's <code class="font-mono text-ember-300">com.apple.developer.networking.networkextension</code> entitlement, which is application-gated. The hook points exist in <code class="font-mono text-ember-300">Sources/NetExt/</code>; the entitlement must be granted by Apple. Until then, blocking is DNS-level + packet-level (pfctl), which catches anything that resolves a hostname — essentially everything except hardcoded-IP malware.</p>
+        <p class="text-coal-300 text-sm mt-3 leading-relaxed">Per-process blocking requires Apple's <code class="font-mono text-ember-300">com.apple.developer.networking.networkextension</code> entitlement and matching provisioning profiles. That path is not in the shipping build. Current <code class="font-mono text-ember-300">pf</code> rules are host-wide; DNS rules cover only manually configured proxy clients.</p>
       </details>
       <details class="group p-5 rounded-2xl border border-coal-800 bg-coal-900/40">
         <summary class="cursor-pointer font-display font-semibold text-white flex items-center justify-between">Will this run on Intel Macs?<span class="text-ember-400 group-open:rotate-45 transition">+</span></summary>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">The release DMG is arm64 only. To build for Intel, set <code class="font-mono text-ember-300">ARCHS = arm64 x86_64</code> in <code class="font-mono text-ember-300">project.yml</code> and rebuild.</p>
+        <p class="text-coal-300 text-sm mt-3 leading-relaxed">Yes. v0.2.1 is a universal binary with arm64 and x86_64 slices and requires macOS 13 (Ventura) or newer.</p>
       </details>
       <details class="group p-5 rounded-2xl border border-coal-800 bg-coal-900/40">
         <summary class="cursor-pointer font-display font-semibold text-white flex items-center justify-between">Does it work alongside Pi-hole / AdGuard Home / NextDNS?<span class="text-ember-400 group-open:rotate-45 transition">+</span></summary>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">Yes. Point PureSnitch's DoH upstream at your own DoH endpoint and PureSnitch becomes a per-device enforcement layer on top of your network-wide blocker.</p>
+        <p class="text-coal-300 text-sm mt-3 leading-relaxed">The experimental proxy accepts a custom DoH upstream, but each client must be configured to query the loopback proxy manually. PureSnitch does not alter system DNS or automatically layer itself over another resolver.</p>
       </details>
       <details class="group p-5 rounded-2xl border border-coal-800 bg-coal-900/40">
         <summary class="cursor-pointer font-display font-semibold text-white flex items-center justify-between">Tailscale, WireGuard, ProtonVPN?<span class="text-ember-400 group-open:rotate-45 transition">+</span></summary>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">pfctl rules apply at the kernel level so they work alongside VPN tunnels on <code class="font-mono text-ember-300">utun*</code> interfaces. The DNS proxy is a loopback bind, so it stays out of the way of VPN-pushed DNS unless you opt in via the "use PureSnitch as system DNS" toggle.</p>
+        <p class="text-coal-300 text-sm mt-3 leading-relaxed">The host-wide <code class="font-mono text-ember-300">pf</code> anchor can interact with VPN routing or other firewall rules, so test your rules with the VPN enabled. The optional DNS proxy stays on loopback and PureSnitch does not replace VPN-provided DNS.</p>
       </details>
     </div>
   </div>

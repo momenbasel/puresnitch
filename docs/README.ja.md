@@ -21,15 +21,15 @@
 ## インストール
 
 ```bash
-brew tap momenbasel/puresnitch
-brew install --cask puresnitch
+brew trust momenbasel/puresnitch
+brew install --cask momenbasel/puresnitch/puresnitch
 ```
 
 または [Releases](https://github.com/momenbasel/puresnitch/releases/latest) から署名・公証済みの `.dmg` をダウンロードし、PureSnitch を `/Applications` にドラッグします。
 
 ## なぜ作ったか
 
-Little Snitch は macOS アプリケーション ファイアウォールのゴールド スタンダードですが、1 台あたり 59 ドルかかります。LuLu は無料でプロセス単位のカーネル レベルでは優秀ですが、ルール マネージャーが簡素で、世界地図もトラフィック グラフもブロックリスト ライブラリもありません。macOS 標準のファイアウォールは受信のみブロックします — 送信トラフィックには何もしません。
+Little Snitch は macOS アプリケーション ファイアウォールのゴールド スタンダードですが、有料の商用ソフトウェアです。LuLu は無料でプロセス単位のカーネル レベルでは優秀ですが、ルール マネージャーが簡素で、世界地図もトラフィック グラフもブロックリスト ライブラリもありません。macOS 標準のファイアウォールは受信のみブロックします — 送信トラフィックには何もしません。
 
 PureSnitch は 4 番目の選択肢です:
 
@@ -37,17 +37,17 @@ PureSnitch は 4 番目の選択肢です:
 - **MIT ライセンスのオープンソース** — コードを読み、フォークし、監査できます
 - **テレメトリーなし** — アナリティクス SDK もクラッシュ レポートも外部に送信しません
 - **ネイティブの Mac アプリとして構築** — 真の SwiftUI、移植版ではありません
-- **Apple による署名・公証済み** — "開発元未確認" の警告は出ません
+- **Developer ID 署名済み・Apple 公証済み** — "開発元未確認" の警告は出ません
 
 ## 主な機能
 
-- アクティブな全接続を表示する世界地図、プロセス・ドメイン・国別のサマリー
-- Little Snitch スタイルの完全なルール マネージャー — グループ、ブロックリスト、検索
+- アクティブ接続とプロセス単位の帯域集計を表示します。現行版にはライブ位置情報や接続単位のバイト数は含まれません
+- 保存済みルールの検索・有効化・無効化・削除に対応するルール ブラウザー。v0.2.1 で新しい永続ルールを作成できるのは DNS プロキシのアラートからのみです
 - Cloudflare / Quad9 / Google または任意の DoH エンドポイントへの DNS over HTTPS
-- `127.0.0.1:53` のローカル DNS プロキシで全クエリを傍受
-- 1Hosts / OISD / StevenBlack / HaGeZi によるドメイン ブロック
+- 手動設定したクライアントだけが利用する実験的なループバック DNS プロキシ。macOS の DNS 設定は変更しません
+- 1Hosts / OISD / StevenBlack / HaGeZi によるドメイン ブロックは、実験的な DNS プロキシを手動設定したクライアントにのみ適用されます
 - `pfctl` アンカーによる IP / CIDR / ポート単位のカーネル レベル ブロック
-- プロファイル (default / home / public-wifi / lockdown) — ネットワーク変更に応じて自動切替
+- プロファイル (default / home / public-wifi / lockdown) は整理用ラベルとして保存されるだけです。現行版で適用されるのは default のみで、他のプロファイルは有効化できません。ネットワークに応じた自動切替も未実装です
 
 ## 英語の完全な README
 

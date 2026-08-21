@@ -1,9 +1,9 @@
 # NetExt — Network System Extension (per-process firewall)
 
-This is the `NEFilterDataProvider` content filter that gives PureSnitch true
-**per-process** connection filtering — the same mechanism Little Snitch uses.
-It is now a real build target (`PureSnitchNetExt`, `type: system-extension`)
-embedded in the app at `Contents/Library/SystemExtensions/`.
+This is the `NEFilterDataProvider` content filter for **per-process** connection
+filtering using the same macOS mechanism as Little Snitch. It is a real build
+target (`PureSnitchNetExt`, `type: system-extension`) embedded only when the
+project is generated from `project-netext.yml`; the shipping build excludes it.
 
 ## Files
 - `main.swift` — entry point (`NEProvider.startSystemExtensionMode()`).
@@ -20,11 +20,13 @@ embedded in the app at `Contents/Library/SystemExtensions/`.
 1. Enable the **Network Extensions** capability on the App ID in the Apple
    Developer portal (self-serve since 2016 — no email request needed) and add
    the `content-filter-provider-systemextension` entitlement to both the app and
-   the extension (already declared in `project.yml`).
+   the extension (declared in `project-netext.yml`, not the shipping
+   `project.yml`).
 2. Two Developer ID provisioning profiles (app + extension) carrying that
    capability.
 3. Sign with **Developer ID Application** (inside-out: extension → helper → app)
-   and **notarize** — see `Scripts/sign_and_notarize.sh`.
+   and notarize. The shipping `Scripts/sign_and_notarize.sh` regenerates
+   `project.yml`, so use it only as a verification reference, not unchanged.
 4. The app must be in **`/Applications`** to activate the extension
    (otherwise `OSSystemExtensionErrorUnsupportedParentBundleLocation`). During
    development you can relax this with `systemextensionsctl developer on`.
@@ -32,6 +34,7 @@ embedded in the app at `Contents/Library/SystemExtensions/`.
    (and the network-filter prompt). Activation is driven by
    `GUI/App/SystemExtensionManager.swift`.
 
-The legacy helper (`Sources/Helper`, pfctl + DNS proxy) remains for rule
-storage and DNS-level blocklists; the system extension is the per-process
-enforcement layer.
+The helper (`Sources/Helper`) remains for rule storage, host-wide `pf` rules,
+and the experimental loopback DNS proxy used only by manually configured
+clients. The system extension is the per-process enforcement layer in this
+non-shipping build flavour.

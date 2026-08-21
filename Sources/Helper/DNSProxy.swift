@@ -2,88 +2,301 @@ import Foundation
 import Network
 
 final class DNSProxy: @unchecked Sendable {
+    private enum ListenerPhase { case stopped, starting, running }
+
     private var udpListener: NWListener?
     private var tcpListener: NWListener?
-    private let queue = DispatchQueue(label: "io.moamenbasel.puresnitch.dns", qos: .userInitiated)
-    private let upstreamQueue = DispatchQueue(label: "io.moamenbasel.puresnitch.dns.up")
-    private(set) var port: UInt16 = 53
-    private(set) var running = false
+    private var listenerPhase: ListenerPhase = .stopped
+    private var listenerGeneration: UUID?
+    private var listeningPort: UInt16 = 53
+    private let lifecycleLock = NSLock()
 
-    var blocklist: Set<String> = []
-    var rules: [Rule] = []
-    var mode: AppMode = .alert
-    var matcher = RuleMatcher()
-    var dohURL: String = AppConstants.defaultDoHUpstream
-    var onBlock: ((String, String?) -> Void)?
-    var onResolve: ((String, [String]) -> Void)?
-    var onAsk: ((String, @escaping (Bool) -> Void) -> Void)?
+    private var tcpIdleTimers: [ObjectIdentifier: (generation: UUID, timer: DispatchSourceTimer)] = [:]
+    private var activeConnections: [ObjectIdentifier: NWConnection] = [:]
+    private let connectionLock = NSLock()
+    private var acceptingConnections = false
+
+    private var storedBlocklist: Set<String> = []
+    private var storedRules: [Rule] = []
+    private var storedMode: AppMode = .alert
+    private var storedDoHURL: String = AppConstants.defaultDoHUpstream
+    private var storedOnBlock: ((String, String?) -> Void)?
+    private var storedOnResolve: ((String, [String]) -> Void)?
+    private var storedOnAsk: ((String, @escaping (Bool) -> Void) -> Void)?
+    private let policyLock = NSLock()
+    private let matcher = RuleMatcher()
+
+    private let queue = DispatchQueue(label: "io.moamenbasel.puresnitch.dns", qos: .userInitiated)
+    private let listenerStartupTimeout: TimeInterval = 5
+    private let tcpIdleTimeout: TimeInterval = 15
+
+    var port: UInt16 {
+        lifecycleLock.lock(); defer { lifecycleLock.unlock() }
+        return listeningPort
+    }
+    var running: Bool {
+        lifecycleLock.lock(); defer { lifecycleLock.unlock() }
+        return listenerPhase == .running
+    }
+
+    var blocklist: Set<String> {
+        get { withPolicyLock { storedBlocklist } }
+        set { withPolicyLock { storedBlocklist = newValue } }
+    }
+    var rules: [Rule] {
+        get { withPolicyLock { storedRules } }
+        set { withPolicyLock { storedRules = newValue } }
+    }
+    var mode: AppMode {
+        get { withPolicyLock { storedMode } }
+        set { withPolicyLock { storedMode = newValue } }
+    }
+    var dohURL: String {
+        get { withPolicyLock { storedDoHURL } }
+        set { withPolicyLock { storedDoHURL = newValue } }
+    }
+    var onBlock: ((String, String?) -> Void)? {
+        get { withPolicyLock { storedOnBlock } }
+        set { withPolicyLock { storedOnBlock = newValue } }
+    }
+    var onResolve: ((String, [String]) -> Void)? {
+        get { withPolicyLock { storedOnResolve } }
+        set { withPolicyLock { storedOnResolve = newValue } }
+    }
+    var onAsk: ((String, @escaping (Bool) -> Void) -> Void)? {
+        get { withPolicyLock { storedOnAsk } }
+        set { withPolicyLock { storedOnAsk = newValue } }
+    }
 
     private let stats = DNSStats()
 
     var statistics: (queries: Int, blocked: Int, allowed: Int) { stats.snapshot() }
 
+    private struct PolicySnapshot {
+        let blocklist: Set<String>
+        let rules: [Rule]
+        let mode: AppMode
+        let dohURL: String
+        let onBlock: ((String, String?) -> Void)?
+        let onResolve: ((String, [String]) -> Void)?
+        let onAsk: ((String, @escaping (Bool) -> Void) -> Void)?
+    }
+
+    @discardableResult
+    private func withPolicyLock<T>(_ body: () -> T) -> T {
+        policyLock.lock()
+        defer { policyLock.unlock() }
+        return body()
+    }
+
+    private func policySnapshot() -> PolicySnapshot {
+        withPolicyLock {
+            PolicySnapshot(
+                blocklist: storedBlocklist,
+                rules: storedRules,
+                mode: storedMode,
+                dohURL: storedDoHURL,
+                onBlock: storedOnBlock,
+                onResolve: storedOnResolve,
+                onAsk: storedOnAsk
+            )
+        }
+    }
+
     func start(port: UInt16 = 53) throws {
-        if running { return }   // already listening; avoid re-binding port 53
-        self.port = port
-        let params = NWParameters.udp
-        params.allowLocalEndpointReuse = true
+        lifecycleLock.lock()
+        if listenerPhase == .running {
+            lifecycleLock.unlock()
+            return
+        }
+        guard listenerPhase == .stopped else {
+            lifecycleLock.unlock()
+            throw NSError(
+                domain: "DNSProxy",
+                code: 4,
+                userInfo: [NSLocalizedDescriptionKey: "DNS listeners are already starting"]
+            )
+        }
+        let generation = UUID()
+        listenerPhase = .starting
+        listenerGeneration = generation
+        listeningPort = port
+        lifecycleLock.unlock()
+
         guard let p = NWEndpoint.Port(rawValue: port) else {
+            stop(expectedGeneration: generation)
             throw NSError(domain: "DNSProxy", code: 1, userInfo: [NSLocalizedDescriptionKey: "bad port"])
         }
-        let udp = try NWListener(using: params, on: p)
-        udp.newConnectionHandler = { [weak self] conn in self?.handleUDP(conn) }
-        udp.stateUpdateHandler = { [weak self] state in
-            if case let .failed(err) = state {
-                PSLog.error(PSLog.dns, "udp listener failed: \(err)")
-                self?.running = false
+
+        do {
+            let udpGate = ListenerStartGate(label: "UDP")
+            let params = NWParameters.udp
+            params.allowLocalEndpointReuse = true
+            params.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: p)
+            let udp = try NWListener(using: params)
+            udp.newConnectionLimit = 128
+            udp.newConnectionHandler = { [weak self] conn in self?.handleUDP(conn, generation: generation) }
+            udp.stateUpdateHandler = { [weak self] state in
+                switch state {
+                case .ready:
+                    udpGate.succeed()
+                case .failed(let err):
+                    udpGate.fail(err)
+                    PSLog.error(PSLog.dns, "udp listener failed: \(err)")
+                    self?.handleListenerFailure(generation: generation)
+                case .cancelled:
+                    udpGate.fail(DNSProxy.listenerCancelledError(protocolName: "UDP"))
+                    self?.handleListenerFailure(generation: generation)
+                default:
+                    break
+                }
             }
+
+            let tcpGate = ListenerStartGate(label: "TCP")
+            let tparams = NWParameters.tcp
+            tparams.allowLocalEndpointReuse = true
+            tparams.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: p)
+            let tcp = try NWListener(using: tparams)
+            tcp.newConnectionLimit = 128
+            tcp.newConnectionHandler = { [weak self] conn in self?.handleTCP(conn, generation: generation) }
+            tcp.stateUpdateHandler = { [weak self] state in
+                switch state {
+                case .ready:
+                    tcpGate.succeed()
+                case .failed(let err):
+                    tcpGate.fail(err)
+                    PSLog.error(PSLog.dns, "tcp listener failed: \(err)")
+                    self?.handleListenerFailure(generation: generation)
+                case .cancelled:
+                    tcpGate.fail(DNSProxy.listenerCancelledError(protocolName: "TCP"))
+                    self?.handleListenerFailure(generation: generation)
+                default:
+                    break
+                }
+            }
+
+            lifecycleLock.lock()
+            guard listenerGeneration == generation, listenerPhase == .starting else {
+                lifecycleLock.unlock()
+                throw DNSProxy.listenerCancelledError(protocolName: "DNS")
+            }
+            udpListener = udp
+            tcpListener = tcp
+            connectionLock.lock()
+            acceptingConnections = true
+            connectionLock.unlock()
+            lifecycleLock.unlock()
+            udp.start(queue: queue)
+            tcp.start(queue: queue)
+
+            try udpGate.wait(timeout: listenerStartupTimeout)
+            try tcpGate.wait(timeout: listenerStartupTimeout)
+
+            lifecycleLock.lock()
+            guard listenerGeneration == generation, listenerPhase == .starting else {
+                lifecycleLock.unlock()
+                throw DNSProxy.listenerCancelledError(protocolName: "DNS")
+            }
+            listenerPhase = .running
+            lifecycleLock.unlock()
+            PSLog.info(PSLog.dns, "dns proxy listening on 127.0.0.1:\(port) (udp+tcp)")
+        } catch {
+            stop(expectedGeneration: generation)
+            throw error
         }
-        udp.start(queue: queue)
-        self.udpListener = udp
-
-        let tparams = NWParameters.tcp
-        tparams.allowLocalEndpointReuse = true
-        let tcp = try NWListener(using: tparams, on: p)
-        tcp.newConnectionHandler = { [weak self] conn in self?.handleTCP(conn) }
-        tcp.start(queue: queue)
-        self.tcpListener = tcp
-
-        running = true
-        PSLog.info(PSLog.dns, "dns proxy listening on \(port) (udp+tcp)")
     }
 
     func stop() {
-        udpListener?.cancel(); tcpListener?.cancel()
+        stop(expectedGeneration: nil)
+    }
+
+    private func stop(expectedGeneration: UUID?) {
+        lifecycleLock.lock()
+        if let expectedGeneration, listenerGeneration != expectedGeneration {
+            lifecycleLock.unlock()
+            return
+        }
+        let udp = udpListener
+        let tcp = tcpListener
         udpListener = nil; tcpListener = nil
-        running = false
+        listenerPhase = .stopped
+        listenerGeneration = nil
+        lifecycleLock.unlock()
+
+        connectionLock.lock()
+        acceptingConnections = false
+        let timers = tcpIdleTimers.values.map(\.timer)
+        let connections = Array(activeConnections.values)
+        tcpIdleTimers.removeAll()
+        activeConnections.removeAll()
+        connectionLock.unlock()
+        udp?.cancel(); tcp?.cancel()
+        for timer in timers { timer.cancel() }
+        for connection in connections { connection.cancel() }
+    }
+
+    private func handleListenerFailure(generation: UUID) {
+        stop(expectedGeneration: generation)
+    }
+
+    private static func listenerCancelledError(protocolName: String) -> NSError {
+        NSError(
+            domain: "DNSProxy",
+            code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "\(protocolName) listener was cancelled before becoming ready"]
+        )
     }
 
     // MARK: - UDP path
-    private func handleUDP(_ conn: NWConnection) {
+    private func handleUDP(_ conn: NWConnection, generation: UUID) {
+        guard registerConnection(conn, listenerGeneration: generation) else {
+            conn.cancel()
+            return
+        }
         conn.start(queue: queue)
         receiveUDP(conn)
     }
+
     private func receiveUDP(_ conn: NWConnection) {
         conn.receiveMessage { [weak self] data, _, _, _ in
             guard let self, let data = data, !data.isEmpty else {
-                conn.cancel(); return
+                self?.removeConnection(conn)
+                conn.cancel()
+                return
             }
             self.process(payload: data, isTCP: false) { reply in
-                guard let reply else { conn.cancel(); return }
-                conn.send(content: reply, completion: .contentProcessed { _ in conn.cancel() })
+                guard let reply else {
+                    self.removeConnection(conn)
+                    conn.cancel()
+                    return
+                }
+                conn.send(content: reply, completion: .contentProcessed { [weak self] _ in
+                    self?.removeConnection(conn)
+                    conn.cancel()
+                })
             }
         }
     }
 
     // MARK: - TCP path
-    private func handleTCP(_ conn: NWConnection) {
+    private func handleTCP(_ conn: NWConnection, generation: UUID) {
+        guard registerConnection(conn, listenerGeneration: generation) else {
+            conn.cancel()
+            return
+        }
         conn.start(queue: queue)
+        armTCPIdleTimeout(conn)
         readTCP(conn, accumulated: Data())
     }
     private func readTCP(_ conn: NWConnection, accumulated: Data) {
-        conn.receive(minimumIncompleteLength: 1, maximumLength: 65535) { [weak self] data, _, _, _ in
+        conn.receive(minimumIncompleteLength: 1, maximumLength: 65535) { [weak self] data, _, isComplete, error in
             guard let self else { conn.cancel(); return }
-            guard let data = data, !data.isEmpty else { conn.cancel(); return }
+            guard error == nil, !isComplete, let data, !data.isEmpty else {
+                self.removeConnection(conn)
+                conn.cancel()
+                return
+            }
+            self.armTCPIdleTimeout(conn)
             var buf = accumulated + data
             while buf.count >= 2 {
                 let len = (Int(buf[0]) << 8) | Int(buf[1])
@@ -103,6 +316,58 @@ final class DNSProxy: @unchecked Sendable {
         }
     }
 
+    private func armTCPIdleTimeout(_ conn: NWConnection) {
+        let key = ObjectIdentifier(conn)
+        let timerGeneration = UUID()
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + tcpIdleTimeout)
+        timer.setEventHandler { [weak self, weak conn] in
+            guard let self else { return }
+            self.connectionLock.lock()
+            let isCurrentTimer = self.tcpIdleTimers[key]?.generation == timerGeneration
+            let expiredTimer = isCurrentTimer ? self.tcpIdleTimers.removeValue(forKey: key)?.timer : nil
+            let expiredConnection = isCurrentTimer ? self.activeConnections.removeValue(forKey: key) : nil
+            self.connectionLock.unlock()
+            guard isCurrentTimer else { return }
+            expiredTimer?.cancel()
+            (expiredConnection ?? conn)?.cancel()
+        }
+        timer.resume()
+        connectionLock.lock()
+        guard acceptingConnections, activeConnections[key] != nil else {
+            connectionLock.unlock()
+            timer.cancel()
+            conn.cancel()
+            return
+        }
+        let replacedTimer = tcpIdleTimers.updateValue((timerGeneration, timer), forKey: key)?.timer
+        connectionLock.unlock()
+        replacedTimer?.cancel()
+    }
+
+    private func registerConnection(_ conn: NWConnection, listenerGeneration generation: UUID) -> Bool {
+        lifecycleLock.lock()
+        let listenerIsCurrent = listenerGeneration == generation && listenerPhase != .stopped
+        lifecycleLock.unlock()
+        guard listenerIsCurrent else { return false }
+
+        let key = ObjectIdentifier(conn)
+        connectionLock.lock()
+        defer { connectionLock.unlock() }
+        guard acceptingConnections else { return false }
+        activeConnections[key] = conn
+        return true
+    }
+
+    private func removeConnection(_ conn: NWConnection) {
+        let key = ObjectIdentifier(conn)
+        connectionLock.lock()
+        let timer = tcpIdleTimers.removeValue(forKey: key)?.timer
+        activeConnections.removeValue(forKey: key)
+        connectionLock.unlock()
+        timer?.cancel()
+    }
+
     // MARK: - DNS processing
     private func process(payload: Data, isTCP: Bool, reply: @escaping (Data?) -> Void) {
         stats.incrQueries()
@@ -110,33 +375,50 @@ final class DNSProxy: @unchecked Sendable {
             reply(nil); return
         }
         let domain = q.name.lowercased()
+        let policy = policySnapshot()
         let connStub = Connection(pid: 0, processName: "", processPath: "", remoteHost: domain, direction: .outgoing, status: .pending)
-        let action = matcher.decision(for: connStub, rules: rules, defaultMode: mode)
+        let action = matcher.decision(for: connStub, rules: policy.rules, defaultMode: policy.mode)
 
-        if action == .deny || isBlocklisted(domain) {
+        if action == .deny || isBlocklisted(domain, in: policy.blocklist) {
             stats.incrBlocked()
-            onBlock?(domain, nil)
+            policy.onBlock?(domain, nil)
             if let resp = DNSWire.nxResponse(for: payload) { reply(resp) } else { reply(nil) }
             return
         }
 
         if action == .ask {
-            onAsk?(domain) { allow in
+            guard let onAsk = policy.onAsk else {
+                // With no decision client, derive the fallback from the current
+                // mode instead of leaving the DNS request suspended forever.
+                if policy.mode == .silentDeny {
+                    stats.incrBlocked()
+                    policy.onBlock?(domain, "no-alert-client")
+                    reply(DNSWire.nxResponse(for: payload))
+                } else {
+                    forwardDoH(payload: payload, domain: domain, policy: policy, reply: reply)
+                }
+                return
+            }
+            onAsk(domain) { [weak self] allow in
+                guard let self else {
+                    reply(nil)
+                    return
+                }
                 if !allow {
                     self.stats.incrBlocked()
-                    self.onBlock?(domain, "ask-denied")
+                    policy.onBlock?(domain, "ask-denied")
                     if let resp = DNSWire.nxResponse(for: payload) { reply(resp) } else { reply(nil) }
                     return
                 }
-                self.forwardDoH(payload: payload, domain: domain, reply: reply)
+                self.forwardDoH(payload: payload, domain: domain, policy: policy, reply: reply)
             }
             return
         }
 
-        forwardDoH(payload: payload, domain: domain, reply: reply)
+        forwardDoH(payload: payload, domain: domain, policy: policy, reply: reply)
     }
 
-    private func isBlocklisted(_ domain: String) -> Bool {
+    private func isBlocklisted(_ domain: String, in blocklist: Set<String>) -> Bool {
         if blocklist.contains(domain) { return true }
         var parts = domain.split(separator: ".")
         while parts.count >= 2 {
@@ -147,9 +429,14 @@ final class DNSProxy: @unchecked Sendable {
         return false
     }
 
-    private func forwardDoH(payload: Data, domain: String, reply: @escaping (Data?) -> Void) {
+    private func forwardDoH(
+        payload: Data,
+        domain: String,
+        policy: PolicySnapshot,
+        reply: @escaping (Data?) -> Void
+    ) {
         stats.incrAllowed()
-        guard let url = URL(string: dohURL) else { reply(nil); return }
+        guard let url = URL(string: policy.dohURL) else { reply(nil); return }
         var req = URLRequest(url: url, timeoutInterval: 5)
         req.httpMethod = "POST"
         req.setValue("application/dns-message", forHTTPHeaderField: "Content-Type")
@@ -158,7 +445,7 @@ final class DNSProxy: @unchecked Sendable {
         let task = URLSession.shared.dataTask(with: req) { data, _, _ in
             if let data = data {
                 if let ips = DNSWire.extractAnswers(data) {
-                    self.onResolve?(domain, ips)
+                    policy.onResolve?(domain, ips)
                 }
                 reply(data)
             } else {
@@ -166,6 +453,48 @@ final class DNSProxy: @unchecked Sendable {
             }
         }
         task.resume()
+    }
+}
+
+private final class ListenerStartGate: @unchecked Sendable {
+    private let condition = NSCondition()
+    private let label: String
+    private var result: Result<Void, Error>?
+
+    init(label: String) {
+        self.label = label
+    }
+
+    func succeed() {
+        finish(.success(()))
+    }
+
+    func fail(_ error: Error) {
+        finish(.failure(error))
+    }
+
+    func wait(timeout: TimeInterval) throws {
+        condition.lock()
+        defer { condition.unlock() }
+        let deadline = Date().addingTimeInterval(timeout)
+        while result == nil && condition.wait(until: deadline) {}
+        guard let result else {
+            throw NSError(
+                domain: "DNSProxy",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "\(label) listener did not become ready within \(Int(timeout)) seconds"]
+            )
+        }
+        try result.get()
+    }
+
+    private func finish(_ newResult: Result<Void, Error>) {
+        condition.lock()
+        if result == nil {
+            result = newResult
+            condition.broadcast()
+        }
+        condition.unlock()
     }
 }
 

@@ -14,6 +14,9 @@ import Foundation
     /// Turns the enforcing parts on/off: the pf anchor and the DNS proxy.
     /// Off by default — PureSnitch observes until the user opts in.
     func setEnforcementEnabled(_ enabled: Bool, reply: @escaping (Bool, String?) -> Void)
+    /// Stops runtime components before launchd removes the helper, without
+    /// changing the helper-owned desired enforcement setting.
+    func prepareForUnregistration(reply: @escaping (Bool, String?) -> Void)
     func stopMonitoring(reply: @escaping (Bool, String?) -> Void)
     func currentConnections(reply: @escaping (Data) -> Void)
     func currentTrafficSample(reply: @escaping (Data) -> Void)

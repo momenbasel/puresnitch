@@ -16,7 +16,7 @@ app that requests them without the profile and the failure mode is not a
 degraded feature - the process can be refused before `main()` runs, so the app
 just never opens.
 
-Two concrete consequences we hit while building v0.2.0:
+Two concrete consequences we hit while building the v0.2 series:
 
 - `xcodebuild` refuses outright: *"PureSnitch requires a provisioning profile
   with the Network Extensions and System Extension features."* There is no way
@@ -24,8 +24,11 @@ Two concrete consequences we hit while building v0.2.0:
 - The 0.1.0 users in issue #5 already had an app that looked dead. Shipping a
   build that AMFI can kill at launch would have been a strictly worse bug.
 
-So v0.2.0 ships as a **monitor**: menu bar, traffic monitor, rules UI, and the
-privileged helper. No system extension, no extension approval prompt.
+So v0.2.1 ships as a **monitor** with opt-in host-wide `pf` rules: menu bar,
+traffic monitor, rules UI, and the privileged helper. The helper also exposes an
+experimental loopback DNS proxy for manually configured clients; it does not
+change the macOS resolver. There is no system extension or extension approval
+prompt in the shipping build.
 
 ## Building the firewall flavour
 
@@ -43,8 +46,10 @@ Before it can be distributed you need, from the Apple Developer portal:
 2. The **System Extension** capability on the app's App ID.
 3. Two Developer ID provisioning profiles - one per App ID - downloaded and
    embedded as `Contents/embedded.provisionprofile` in the respective bundles.
-4. Inside-out signing (`Scripts/sign_and_notarize.sh` already signs the
-   extension before the app), then notarization and stapling.
+4. A dedicated inside-out signing flow (extension, helper, then app), followed
+   by notarization and stapling. `Scripts/sign_and_notarize.sh` is the shipping
+   monitor release script and regenerates `project.yml`, so do not use it
+   unchanged for this flavour.
 5. The app installed in `/Applications` and approved in
    System Settings › Privacy & Security. For local development only,
    `systemextensionsctl developer on` skips the notarization requirement.

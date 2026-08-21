@@ -12,11 +12,25 @@ xcodegen generate
 open PureSnitch.xcodeproj
 ```
 
-Build target: PureSnitch. Hit ⌘R. The first run will fail to install the helper daemon if you're not signed with a Developer ID — that's expected for dev builds. The GUI still launches and is fully interactive against in-memory state.
+The project file carries the maintainer's release-signing identity. For a
+certificate-free local build, use:
+
+```bash
+xcodebuild -project PureSnitch.xcodeproj -scheme PureSnitch -configuration Debug \
+  -derivedDataPath build/dd \
+  CODE_SIGN_IDENTITY="-" \
+  CODE_SIGNING_REQUIRED=NO \
+  CODE_SIGNING_ALLOWED=NO \
+  build
+```
+
+That build launches the GUI, but it cannot register the privileged helper and
+therefore has no live monitoring or enforcement. Configure your own Developer
+ID signing when testing helper-backed behavior.
 
 ## Conventions
 
-- **Swift 5.10**, macOS 14+ deployment target.
+- **Swift 5**, macOS 13 (Ventura)+ deployment target.
 - **No new dependencies** unless there's a load-bearing reason. SQLite via `import SQLite3` is fine; a third-party Swift package needs justification in the PR.
 - **f-strings? no.** This is Swift. String interpolation, not Python.
 - **No emoji in code or commits.** Yes, even there.
@@ -33,10 +47,10 @@ Build target: PureSnitch. Hit ⌘R. The first run will fail to install the helpe
 
 ## Pull request checklist
 
-- [ ] Builds clean with `xcodegen generate && xcodebuild -project PureSnitch.xcodeproj -scheme PureSnitch`
+- [ ] Builds clean with the certificate-free command above
 - [ ] No new warnings in your changed files
 - [ ] Manual test pass: app launches, menubar popover appears, Network Monitor opens, Rules Manager opens
-- [ ] If you touched the helper: `sudo lsof -nP -iUDP:53` shows the proxy still binds, `pfctl -a puresnitch -s rules` shows your rules
+- [ ] If you touched the helper: `sudo lsof -nP -iUDP:53` shows only the loopback listener, and `sudo pfctl -a com.apple/puresnitch -s rules` shows only PureSnitch's validated runtime rules
 
 ## Reporting bugs
 
