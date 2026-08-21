@@ -31,6 +31,9 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+      - name: Run hardening regression tests
+        run: Scripts/test_hardening.sh
+
       - name: Verify app bundle
         run: |
           APP=build/dd/Build/Products/Debug/PureSnitch.app
@@ -79,11 +82,32 @@ jobs:
 
       - name: Verify no restricted entitlements leaked into the shipping build
         run: |
-          APP=build/rel/Build/Products/Release/PureSnitch.app
-          ENT=$(codesign -d --entitlements - --xml "$APP" 2>/dev/null || true)
-          if echo "$ENT" | grep -q "com.apple.developer.networking.networkextension"; then
-            echo "ERROR: Network Extension entitlement present without a provisioning profile."
-            echo "Signed builds carrying it can be refused at launch by AMFI."
+          ENT_REL=$(xcodebuild \
+            -project PureSnitch.xcodeproj \
+            -target PureSnitch \
+            -configuration Release \
+            -showBuildSettings \
+            | awk -F ' = ' '/^[[:space:]]*CODE_SIGN_ENTITLEMENTS = / && !found { print $2; found=1 }')
+
+          test "$ENT_REL" = "Sources/GUI/PureSnitch.entitlements"
+          ENT="$GITHUB_WORKSPACE/$ENT_REL"
+          test -f "$ENT"
+          plutil -lint "$ENT"
+
+          for KEY in \
+            com.apple.developer.networking.networkextension \
+            com.apple.developer.system-extension.install; do
+            if /usr/libexec/PlistBuddy -c "Print :$KEY" "$ENT" >/dev/null 2>&1; then
+              echo "ERROR: restricted shipping entitlement present: $KEY"
+              exit 1
+            fi
+          done
+
+          EXPECTED_GROUP=H3WXHVTP97.io.moamenbasel.puresnitch
+          ACTUAL_GROUP=$(/usr/libexec/PlistBuddy -c "Print :com.apple.security.application-groups:0" "$ENT")
+          test "$ACTUAL_GROUP" = "$EXPECTED_GROUP"
+          if /usr/libexec/PlistBuddy -c "Print :com.apple.security.application-groups:1" "$ENT" >/dev/null 2>&1; then
+            echo "ERROR: shipping app contains an unexpected additional app group"
             exit 1
           fi
-          echo "No profile-gated entitlements in the shipping build"
+          echo "Shipping entitlements verified: expected app group, no profile-gated capabilities"

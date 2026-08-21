@@ -4,6 +4,8 @@ import SQLite3
 private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
 public final class RuleStore: @unchecked Sendable {
+    static let connectionHistoryLimit = 5_000
+
     private var db: OpaquePointer?
     private let queue = DispatchQueue(label: "io.moamenbasel.puresnitch.rulestore")
     public let path: String
@@ -101,6 +103,7 @@ public final class RuleStore: @unchecked Sendable {
         try seedProfiles()
         try seedBlocklists()
         try migrateDefaultBlocklistURLs()
+        try pruneConnectionHistory()
     }
 
     private func seedProfiles() throws {
@@ -303,49 +306,88 @@ public final class RuleStore: @unchecked Sendable {
     }
 
     public func recordConnection(_ c: Connection) throws {
+        try recordConnections([c])
+    }
+
+    /// Persist one monitor snapshot atomically. Repeated observations carry a
+    /// stable id from NetMonitor, so the primary-key upsert updates the active
+    /// session instead of appending a fresh row every poll.
+    public func recordConnections(_ connections: [Connection]) throws {
+        guard !connections.isEmpty else { return }
         let sql = """
-        INSERT OR REPLACE INTO connections(
+        INSERT INTO connections(
             id,pid,process_name,process_path,process_bundle_id,local_port,remote_host,remote_ip,
             remote_port,direction,status,protocol_name,bytes_in,bytes_out,country,country_code,
             latitude,longitude,first_seen,last_seen
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(id) DO UPDATE SET
+            pid=excluded.pid,
+            process_name=excluded.process_name,
+            process_path=excluded.process_path,
+            process_bundle_id=excluded.process_bundle_id,
+            local_port=excluded.local_port,
+            remote_host=excluded.remote_host,
+            remote_ip=excluded.remote_ip,
+            remote_port=excluded.remote_port,
+            direction=excluded.direction,
+            status=excluded.status,
+            protocol_name=excluded.protocol_name,
+            bytes_in=excluded.bytes_in,
+            bytes_out=excluded.bytes_out,
+            country=excluded.country,
+            country_code=excluded.country_code,
+            latitude=excluded.latitude,
+            longitude=excluded.longitude,
+            first_seen=MIN(connections.first_seen, excluded.first_seen),
+            last_seen=MAX(connections.last_seen, excluded.last_seen);
         """
-        try execute(sql) { stmt in
-            sqlite3_bind_text(stmt, 1, c.id.uuidString, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_int(stmt, 2, c.pid)
-            sqlite3_bind_text(stmt, 3, c.processName, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 4, c.processPath, -1, SQLITE_TRANSIENT)
-            bindOpt(stmt, 5, c.processBundleId)
-            sqlite3_bind_int(stmt, 6, Int32(c.localPort))
-            sqlite3_bind_text(stmt, 7, c.remoteHost, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 8, c.remoteIP, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_int(stmt, 9, Int32(c.remotePort))
-            sqlite3_bind_text(stmt, 10, c.direction.rawValue, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 11, c.status.rawValue, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 12, c.protocolName, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_int64(stmt, 13, c.bytesIn)
-            sqlite3_bind_int64(stmt, 14, c.bytesOut)
-            bindOpt(stmt, 15, c.country)
-            bindOpt(stmt, 16, c.countryCode)
-            if let v = c.latitude { sqlite3_bind_double(stmt, 17, v) } else { sqlite3_bind_null(stmt, 17) }
-            if let v = c.longitude { sqlite3_bind_double(stmt, 18, v) } else { sqlite3_bind_null(stmt, 18) }
-            sqlite3_bind_double(stmt, 19, c.firstSeen.timeIntervalSince1970)
-            sqlite3_bind_double(stmt, 20, c.lastSeen.timeIntervalSince1970)
+        try queue.sync {
+            try exec("BEGIN IMMEDIATE;")
+            do {
+                do {
+                    var stmt: OpaquePointer?
+                    guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                        throw databaseError(code: 3)
+                    }
+                    defer { sqlite3_finalize(stmt) }
+
+                    for connection in connections {
+                        sqlite3_reset(stmt)
+                        sqlite3_clear_bindings(stmt)
+                        bindConnection(connection, to: stmt)
+                        guard sqlite3_step(stmt) == SQLITE_DONE else {
+                            throw databaseError(code: 4)
+                        }
+                    }
+                }
+                try pruneConnectionHistoryUnlocked()
+                try exec("COMMIT;")
+            } catch {
+                try? exec("ROLLBACK;")
+                throw error
+            }
         }
     }
 
     public func recentConnections(limit: Int = 200, status: Connection.Status? = nil) -> [Connection] {
         queue.sync {
             var out: [Connection] = []
+            let safeLimit = min(max(limit, 0), Self.connectionHistoryLimit)
             let sql: String
-            if let s = status {
-                sql = "SELECT * FROM connections WHERE status='\(s.rawValue)' ORDER BY last_seen DESC LIMIT \(limit);"
+            if status != nil {
+                sql = "SELECT * FROM connections WHERE status=? ORDER BY last_seen DESC LIMIT ?;"
             } else {
-                sql = "SELECT * FROM connections ORDER BY last_seen DESC LIMIT \(limit);"
+                sql = "SELECT * FROM connections ORDER BY last_seen DESC LIMIT ?;"
             }
             var stmt: OpaquePointer?
             defer { if stmt != nil { sqlite3_finalize(stmt) } }
             guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+            if let status {
+                sqlite3_bind_text(stmt, 1, status.rawValue, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_int64(stmt, 2, Int64(safeLimit))
+            } else {
+                sqlite3_bind_int64(stmt, 1, Int64(safeLimit))
+            }
             while sqlite3_step(stmt) == SQLITE_ROW {
                 if let c = readConn(stmt) { out.append(c) }
             }
@@ -373,6 +415,55 @@ public final class RuleStore: @unchecked Sendable {
     // MARK: - helpers
     private func bindOpt(_ stmt: OpaquePointer?, _ idx: Int32, _ s: String?) {
         if let s = s { sqlite3_bind_text(stmt, idx, s, -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(stmt, idx) }
+    }
+    private func bindConnection(_ c: Connection, to stmt: OpaquePointer?) {
+        sqlite3_bind_text(stmt, 1, c.id.uuidString, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 2, c.pid)
+        sqlite3_bind_text(stmt, 3, c.processName, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 4, c.processPath, -1, SQLITE_TRANSIENT)
+        bindOpt(stmt, 5, c.processBundleId)
+        sqlite3_bind_int(stmt, 6, Int32(c.localPort))
+        sqlite3_bind_text(stmt, 7, c.remoteHost, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 8, c.remoteIP, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 9, Int32(c.remotePort))
+        sqlite3_bind_text(stmt, 10, c.direction.rawValue, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 11, c.status.rawValue, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 12, c.protocolName, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int64(stmt, 13, c.bytesIn)
+        sqlite3_bind_int64(stmt, 14, c.bytesOut)
+        bindOpt(stmt, 15, c.country)
+        bindOpt(stmt, 16, c.countryCode)
+        if let v = c.latitude { sqlite3_bind_double(stmt, 17, v) } else { sqlite3_bind_null(stmt, 17) }
+        if let v = c.longitude { sqlite3_bind_double(stmt, 18, v) } else { sqlite3_bind_null(stmt, 18) }
+        sqlite3_bind_double(stmt, 19, c.firstSeen.timeIntervalSince1970)
+        sqlite3_bind_double(stmt, 20, c.lastSeen.timeIntervalSince1970)
+    }
+    private func pruneConnectionHistory() throws {
+        try queue.sync { try pruneConnectionHistoryUnlocked() }
+    }
+    private func pruneConnectionHistoryUnlocked() throws {
+        let sql = """
+        DELETE FROM connections
+        WHERE rowid IN (
+            SELECT rowid FROM connections
+            ORDER BY last_seen DESC, rowid DESC
+            LIMIT -1 OFFSET ?
+        );
+        """
+        var stmt: OpaquePointer?
+        defer { if stmt != nil { sqlite3_finalize(stmt) } }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw databaseError(code: 3)
+        }
+        sqlite3_bind_int64(stmt, 1, Int64(Self.connectionHistoryLimit))
+        guard sqlite3_step(stmt) == SQLITE_DONE else { throw databaseError(code: 4) }
+    }
+    private func databaseError(code: Int) -> NSError {
+        NSError(
+            domain: "RuleStore",
+            code: code,
+            userInfo: [NSLocalizedDescriptionKey: String(cString: sqlite3_errmsg(db))]
+        )
     }
     private func text(_ stmt: OpaquePointer?, _ idx: Int32) -> String {
         guard let p = sqlite3_column_text(stmt, idx) else { return "" }

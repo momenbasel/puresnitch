@@ -4,21 +4,10 @@ struct ConnectionAlertView: View {
     @EnvironmentObject var state: AppState
     let alert: AppState.PendingAlert
     @State private var remember: Bool = true
-    @State private var scope: AlertScope = .anyConnection
-    @State private var duration: AlertDuration = .forever
 
-    enum AlertScope: String, CaseIterable, Identifiable {
-        case anyConnection = "any connection"
-        case thisHost = "this host"
-        case thisIPandPort = "this IP and port"
-        var id: String { rawValue }
-    }
-    enum AlertDuration: String, CaseIterable, Identifiable {
-        case forever = "Forever"
-        case session = "Until quit"
-        case oneHour = "1 hour"
-        case oneDay = "24 hours"
-        var id: String { rawValue }
+    private var isIPv6Endpoint: Bool {
+        Rule.isIPv6Address(alert.connection.remoteHost) ||
+        Rule.isIPv6Address(alert.connection.remoteIP)
     }
 
     var body: some View {
@@ -51,21 +40,26 @@ struct ConnectionAlertView: View {
                 Toggle("Remember this decision", isOn: $remember)
                     .toggleStyle(.checkbox)
                     .foregroundColor(PSTheme.textPrimary)
-                Picker("Scope", selection: $scope) {
-                    ForEach(AlertScope.allCases) { s in Text(s.rawValue).tag(s) }
-                }.disabled(!remember)
-                Picker("Duration", selection: $duration) {
-                    ForEach(AlertDuration.allCases) { d in Text(d.rawValue).tag(d) }
-                }.disabled(!remember)
+                    .disabled(isIPv6Endpoint)
+                if isIPv6Endpoint {
+                    Text("IPv6 rules are not supported in this release; this decision applies once.")
+                        .font(.caption)
+                        .foregroundColor(PSTheme.textSecondary)
+                }
+                if remember && !isIPv6Endpoint {
+                    Text("The decision is saved permanently for this validated domain or IPv4 endpoint.")
+                        .font(.caption)
+                        .foregroundColor(PSTheme.textSecondary)
+                }
             }
 
             HStack {
-                Button("Deny") { state.resolveAlert(alert, allow: false, remember: remember) }
+                Button("Deny") { state.resolveAlert(alert, allow: false, remember: remember && !isIPv6Endpoint) }
                     .keyboardShortcut(.cancelAction)
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
                 Spacer()
-                Button("Allow") { state.resolveAlert(alert, allow: true, remember: remember) }
+                Button("Allow") { state.resolveAlert(alert, allow: true, remember: remember && !isIPv6Endpoint) }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
@@ -75,6 +69,9 @@ struct ConnectionAlertView: View {
         .frame(width: 440)
         .background(PSTheme.bgPrimary)
         .preferredColorScheme(.dark)
+        .onAppear {
+            if isIPv6Endpoint { remember = false }
+        }
     }
 }
 

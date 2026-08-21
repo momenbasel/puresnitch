@@ -58,14 +58,14 @@ private struct BannerInfo {
     /// Returns nil when everything is healthy — no banner, no noise.
     init?(installState: HelperInstallState, connected: Bool, needsRepair: Bool) {
         switch installState {
-        case .enabled where connected:
-            return nil
         case .enabled where needsRepair:
             icon = "wrench.and.screwdriver.fill"
             tint = PSTheme.accentYellow
             title = "The helper needs repairing"
-            detail = "It is approved but either not responding or left over from an older PureSnitch — usually after an in-place update. Repairing re-installs the background helper; macOS will ask you to approve it once more in Login Items."
+            detail = "It is approved, but its reported firewall state is degraded, it is not responding, or an older helper remains after an update. Repairing re-installs the background helper; macOS may ask you to approve it again in Login Items."
             action = BannerAction(title: "Repair Helper") { $0.helper.repairHelper() }
+        case .enabled where connected:
+            return nil
         case .enabled:
             icon = "hourglass"
             tint = PSTheme.accentYellow

@@ -1,9 +1,65 @@
 import Foundation
 
+struct SocketIdentity: Hashable, Sendable {
+    let pid: Int32
+    let processPath: String
+    let localAddress: String
+    let localPort: Int
+    let remoteAddress: String
+    let remotePort: Int
+    let direction: RuleDirection
+    let protocolName: String
+}
+
+struct SocketObservation: Sendable {
+    var connection: Connection
+    let identity: SocketIdentity
+}
+
+struct ActiveConnectionTracker: Sendable {
+    private struct Session: Sendable {
+        let id: UUID
+        let firstSeen: Date
+    }
+
+    private var active: [SocketIdentity: Session] = [:]
+
+    /// Carry identity only while a socket is present in consecutive snapshots.
+    /// Once it disappears, a later reuse of the same 5-tuple is a new session.
+    mutating func reconcile(_ observations: [SocketObservation], seenAt: Date) -> [Connection] {
+        var next: [SocketIdentity: Session] = [:]
+        var seen: Set<SocketIdentity> = []
+        var connections: [Connection] = []
+        connections.reserveCapacity(observations.count)
+
+        for observation in observations where seen.insert(observation.identity).inserted {
+            var connection = observation.connection
+            if let session = active[observation.identity] {
+                connection.id = session.id
+                connection.firstSeen = session.firstSeen
+            } else {
+                connection.id = UUID()
+                connection.firstSeen = seenAt
+            }
+            connection.lastSeen = seenAt
+            next[observation.identity] = Session(id: connection.id, firstSeen: connection.firstSeen)
+            connections.append(connection)
+        }
+        active = next
+        return connections
+    }
+
+    mutating func reset() {
+        active.removeAll(keepingCapacity: true)
+    }
+}
+
 final class NetMonitor: @unchecked Sendable {
     private var lsofTimer: DispatchSourceTimer?
     private var nettopProc: Process?
     private let queue = DispatchQueue(label: "io.moamenbasel.puresnitch.netmon", qos: .utility)
+    private let connectionStateLock = NSLock()
+    private var connectionTracker = ActiveConnectionTracker()
 
     var onConnections: (([Connection]) -> Void)?
     var onSample: ((TrafficSample) -> Void)?
@@ -27,6 +83,9 @@ final class NetMonitor: @unchecked Sendable {
         lsofTimer?.cancel(); lsofTimer = nil
         nettopProc?.terminate(); nettopProc = nil
         pending = ""; frame = []; hasBaseline = false
+        connectionStateLock.lock()
+        connectionTracker.reset()
+        connectionStateLock.unlock()
         isRunning = false
     }
 
@@ -41,7 +100,7 @@ final class NetMonitor: @unchecked Sendable {
     private func pollLsof() {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
-        p.arguments = ["-i", "-n", "-P", "-F", "pcnT"]
+        p.arguments = ["-i", "-n", "-P", "-F", "pcnPT"]
         let pipe = Pipe(); p.standardOutput = pipe; p.standardError = Pipe()
         do { try p.run() } catch { return }
         // Drain the pipe BEFORE waiting. `lsof -i` on a busy Mac easily exceeds
@@ -52,26 +111,45 @@ final class NetMonitor: @unchecked Sendable {
         p.waitUntilExit()
         guard let txt = String(data: data, encoding: .utf8) else { return }
 
-        var conns: [Connection] = []
+        var observations: [SocketObservation] = []
         var pid: Int32 = 0
         var pname = ""
+        var protocolName = "tcp"
         for line in txt.split(separator: "\n") {
             guard let first = line.first else { continue }
             let rest = String(line.dropFirst())
             switch first {
             case "p":
                 pid = Int32(rest) ?? 0
+                protocolName = "tcp"
             case "c":
                 pname = rest
+            case "P":
+                protocolName = rest.lowercased()
             case "n":
-                if let c = parseN(line: rest, pid: pid, name: pname) { conns.append(c) }
+                if let observation = parseN(
+                    line: rest,
+                    pid: pid,
+                    name: pname,
+                    protocolName: protocolName
+                ) {
+                    observations.append(observation)
+                }
             default: break
             }
         }
+        connectionStateLock.lock()
+        let conns = connectionTracker.reconcile(observations, seenAt: Date())
+        connectionStateLock.unlock()
         onConnections?(conns)
     }
 
-    private func parseN(line: String, pid: Int32, name: String) -> Connection? {
+    private func parseN(
+        line: String,
+        pid: Int32,
+        name: String,
+        protocolName: String
+    ) -> SocketObservation? {
         guard line.contains("->") else { return nil }
         let parts = line.split(separator: " ").map(String.init)
         let addrPart = parts.first ?? line
@@ -81,10 +159,10 @@ final class NetMonitor: @unchecked Sendable {
         let remoteRaw = halves[1].hasPrefix(">") ? String(halves[1].dropFirst()) : halves[1]
         guard let (lip, lport) = splitHostPort(local) else { return nil }
         guard let (rip, rport) = splitHostPort(remoteRaw) else { return nil }
-        _ = lip
         let path = pidPath(pid)
         let bundle = bundleID(forPath: path)
-        return Connection(
+        let normalizedProtocol = protocolName.isEmpty ? "tcp" : protocolName.lowercased()
+        let connection = Connection(
             pid: pid,
             processName: name,
             processPath: path,
@@ -95,8 +173,19 @@ final class NetMonitor: @unchecked Sendable {
             remotePort: rport,
             direction: .outgoing,
             status: .established,
-            protocolName: "tcp"
+            protocolName: normalizedProtocol
         )
+        let identity = SocketIdentity(
+            pid: pid,
+            processPath: path,
+            localAddress: lip,
+            localPort: lport,
+            remoteAddress: rip,
+            remotePort: rport,
+            direction: .outgoing,
+            protocolName: normalizedProtocol
+        )
+        return SocketObservation(connection: connection, identity: identity)
     }
 
     private func splitHostPort(_ s: String) -> (String, Int)? {

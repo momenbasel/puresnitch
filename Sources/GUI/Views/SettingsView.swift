@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject var state: AppState
     @State private var doh = AppConstants.defaultDoHUpstream
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var showingRemoveHelperConfirmation = false
 
     var body: some View {
         TabView {
@@ -16,6 +17,18 @@ struct SettingsView: View {
         }
         .padding(16)
         .frame(width: 520, height: 420)
+        .confirmationDialog(
+            "Remove the privileged helper?",
+            isPresented: $showingRemoveHelperConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Remove Helper", role: .destructive) {
+                state.helper.unregisterDaemon()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("PureSnitch will stop monitoring until the helper is installed and approved again. Enforcement must already be off so removal cannot leave or silently clear firewall state.")
+        }
     }
 
     private var generalTab: some View {
@@ -31,6 +44,15 @@ struct SettingsView: View {
                     if state.helperInstallState != .enabled {
                         Button("Open Login Items…") { state.helper.openLoginItemsSettings() }
                     }
+                    if state.helperInstallState == .enabled {
+                        Button("Remove Helper…", role: .destructive) {
+                            showingRemoveHelperConfirmation = true
+                        }
+                        .disabled(removeHelperDisabled)
+                        Text("Turn Enforcement Off and wait for both runtime components to stop before removing the helper.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 Section("Menu bar") {
                     Toggle("Show download and upload speeds in the menu bar",
@@ -42,9 +64,20 @@ struct SettingsView: View {
                     Toggle("Show alerts on all Spaces", isOn: $state.showAlertsOnAllSpaces)
                 }
                 Section("Enforcement") {
-                    Toggle("Block traffic, don't just watch it", isOn: $state.enforcementEnabled)
-                        .disabled(!state.helperConnected)
-                    Text("Off by default. Turning this on lets PureSnitch load a pf firewall anchor and run a DNS proxy on port \(AppConstants.dnsProxyPort), which changes how this Mac resolves names and filters packets. Leave it off to use PureSnitch purely as a traffic monitor.")
+                    Toggle(
+                        "Block traffic, don't just watch it",
+                        isOn: Binding(
+                            get: { state.enforcementEnabled },
+                            set: { state.requestEnforcementDesired($0) }
+                        )
+                    )
+                        .disabled(!state.helperConnected || !state.helperStatusLoaded || state.enforcementRequestInFlight || state.modeRequestInFlight)
+                    HStack {
+                        Text("Runtime status")
+                        Spacer()
+                        Text(enforcementRuntimeSummary).foregroundColor(.secondary)
+                    }
+                    Text("Experimental and off by default. This loads a pf firewall anchor and starts a local DNS proxy on port \(AppConstants.dnsProxyPort). PureSnitch does not change macOS DNS settings; DNS filtering applies only if you manually configure this Mac or an app to use the proxy. Leave this off for monitoring only.")
                         .font(.caption).foregroundColor(.secondary)
                 }
                 Section("Mode") {
@@ -53,6 +86,7 @@ struct SettingsView: View {
                         Text("Silent Allow").tag(AppMode.silentAllow)
                         Text("Silent Deny").tag(AppMode.silentDeny)
                     }
+                    .disabled(!state.helperConnected || !state.helperStatusLoaded || state.enforcementRequestInFlight || state.modeRequestInFlight)
                 }
             }
             .formStyle(.grouped)
@@ -68,6 +102,28 @@ struct SettingsView: View {
         case .wrongLocation: return "Move PureSnitch to /Applications"
         case .notFound: return "Missing from this build"
         case .failed(let m): return "Failed: \(m)"
+        }
+    }
+
+    private var removeHelperDisabled: Bool {
+        !state.helperConnected
+            || !state.helperStatusLoaded
+            || state.enforcementEnabled
+            || state.pfctlEnabled
+            || state.dnsProxyEnabled
+            || state.enforcementRequestInFlight
+            || state.modeRequestInFlight
+    }
+
+    private var enforcementRuntimeSummary: String {
+        if !state.helperConnected { return "Helper disconnected; runtime unknown" }
+        if !state.helperStatusLoaded { return "Loading helper status…" }
+        if state.enforcementRequestInFlight { return "Applying requested state…" }
+        switch (state.pfctlEnabled, state.dnsProxyEnabled) {
+        case (true, true): return "Firewall and DNS proxy active"
+        case (true, false): return "Firewall active; DNS proxy inactive"
+        case (false, true): return "DNS proxy active; firewall inactive"
+        case (false, false): return state.enforcementEnabled ? "Requested; waiting for helper" : "Inactive"
         }
     }
 
@@ -95,13 +151,18 @@ struct SettingsView: View {
                 HStack {
                     Text("Status")
                     Spacer()
-                    Text(state.dnsProxyEnabled ? "Running on port \(AppConstants.dnsProxyPort)" : "Not running")
+                    Text(dnsRuntimeSummary)
                         .foregroundColor(.secondary)
                 }
-                Text("The DNS proxy runs inside the privileged helper and filters domain lookups against the enabled blocklists. It reports as running only once the helper confirms it.")
+                Text("The proxy runs inside the privileged helper and filters queries sent directly to it. PureSnitch does not configure it as the macOS system resolver; manual DNS configuration is required. Status changes only after the helper confirms it.")
                     .font(.caption).foregroundColor(.secondary)
             }
         }
+    }
+
+    private var dnsRuntimeSummary: String {
+        guard state.helperConnected, state.helperStatusLoaded else { return "Runtime unknown" }
+        return state.dnsProxyEnabled ? "Running on port \(AppConstants.dnsProxyPort)" : "Not running"
     }
 
     private var blocklistsTab: some View {
@@ -146,7 +207,9 @@ struct SettingsView: View {
 
     private var profilesTab: some View {
         VStack(alignment: .leading) {
-            Text("Profiles").font(.headline)
+            Text("Profiles (organizational only)").font(.headline)
+            Text("PureSnitch 0.2.1 enforces only the default profile. Additional profiles can organize stored rules but cannot be activated.")
+                .font(.caption).foregroundColor(.secondary)
             if state.profiles.isEmpty {
                 Text("No profiles yet. Profiles come from the privileged helper's rule database.")
                     .font(.caption).foregroundColor(.secondary)
@@ -156,12 +219,10 @@ struct SettingsView: View {
                     Image(systemName: p.icon)
                     Text(p.name)
                     Spacer()
-                    if p.isActive {
-                        PSChip("Active", color: PSTheme.accentGreen)
+                    if p.name == "default" {
+                        PSChip("Enforced", color: PSTheme.accentGreen)
                     } else {
-                        Button("Activate") {
-                            state.activeProfile = p.name
-                        }
+                        PSChip("Stored only", color: PSTheme.textSecondary)
                     }
                 }.padding(.vertical, 4)
             }
