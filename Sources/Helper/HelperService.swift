@@ -244,7 +244,14 @@ final class HelperService: NSObject, HelperProtocol, @unchecked Sendable {
 
     func refreshBlocklists(reply: @escaping (Bool, String?) -> Void) {
         Task {
-            await self.blocklists.refresh()
+            let summary = await self.blocklists.refresh()
+            guard summary.failures.isEmpty else {
+                let message = "Refreshed \(summary.refreshed) blocklists; partial failures: "
+                    + summary.failures.joined(separator: "; ")
+                PSLog.error(PSLog.dns, message)
+                reply(false, message)
+                return
+            }
             reply(true, nil)
         }
     }

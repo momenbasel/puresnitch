@@ -282,7 +282,15 @@ final class HelperClient: NSObject, ObservableObject {
     }
 
     func refreshBlocklists() {
-        remote?.refreshBlocklists { _, _ in }
+        remote?.refreshBlocklists { [weak self] ok, message in
+            guard !ok else { return }
+            Task { @MainActor in
+                self?.state?.appendLog(
+                    level: "error",
+                    message: message ?? "One or more blocklists failed to refresh; cached data remains active."
+                )
+            }
+        }
     }
 
     func setEnforcementEnabled(_ enabled: Bool) {
