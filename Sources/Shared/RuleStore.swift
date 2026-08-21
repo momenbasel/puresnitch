@@ -100,6 +100,7 @@ public final class RuleStore: @unchecked Sendable {
         try exec(ddl)
         try seedProfiles()
         try seedBlocklists()
+        try migrateDefaultBlocklistURLs()
     }
 
     private func seedProfiles() throws {
@@ -118,12 +119,29 @@ public final class RuleStore: @unchecked Sendable {
             BlocklistInfo(name: "OISD (small)", url: "https://small.oisd.nl/"),
             BlocklistInfo(name: "StevenBlack unified", url: "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"),
             BlocklistInfo(name: "AdGuard DNS", url: "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt"),
-            BlocklistInfo(name: "HaGeZi Multi Light", url: "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/light.txt"),
+            // HaGeZi deprecated the hosts format on 2026-08-01 and the GitHub
+            // repository is gone, so the old raw.githubusercontent URL is a 404.
+            // The GitLab mirror still publishes daily, in Adblock syntax, which
+            // BlocklistManager already parses.
+            BlocklistInfo(name: "HaGeZi Multi Light", url: "https://gitlab.com/hagezi/mirror/-/raw/main/dns-blocklists/adblock/light.txt"),
             BlocklistInfo(name: "URLhaus", url: "https://urlhaus.abuse.ch/downloads/hostfile/"),
             BlocklistInfo(name: "Anti-PopAds", url: "https://raw.githubusercontent.com/Yhonay/antipopads/master/hosts"),
             BlocklistInfo(name: "Peter Lowe", url: "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext")
         ]
         for b in defaults { try insertBlocklistIfMissing(b) }
+    }
+
+    /// Seed rows are unique by name, so changing a default does not update an
+    /// existing installation. Rewrite only the retired built-in URL; a user
+    /// supplied replacement is left untouched.
+    private func migrateDefaultBlocklistURLs() throws {
+        let oldURL = "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/light.txt"
+        let newURL = "https://gitlab.com/hagezi/mirror/-/raw/main/dns-blocklists/adblock/light.txt"
+        try execute("UPDATE blocklists SET url=? WHERE name=? AND url=?;") { stmt in
+            sqlite3_bind_text(stmt, 1, newURL, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, "HaGeZi Multi Light", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, oldURL, -1, SQLITE_TRANSIENT)
+        }
     }
 
     private func insertProfileIfMissing(_ p: Profile) throws {
