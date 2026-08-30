@@ -1,0 +1,63 @@
+name: Sync Homebrew tap
+
+# Issue #4: the cask sat at v0.1.0 while the Releases page was on v0.2.0, so
+# every `brew install` handed out a build that predated the fixes. This job
+# pushes the bump the moment a release is published. The tap also polls on a
+# schedule, so a missing token here delays the bump but never loses it.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to sync (defaults to the latest release)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve the release and its DMG
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-${{ github.event.release.tag_name || '' }}}"
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          fi
+          VERSION="${TAG#v}"
+          ASSET="PureSnitch-${VERSION}.dmg"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$ASSET" --dir .
+          SHA=$(sha256sum "$ASSET" | cut -d' ' -f1)
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "::notice::$ASSET sha256=$SHA"
+
+      - name: Dispatch the cask bump
+        env:
+          # Fine-grained PAT with Contents: write on momenbasel/homebrew-puresnitch.
+          TAP_TOKEN: ${{ secrets.TAP_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TAP_TOKEN:-}" ]; then
+            echo "::warning::TAP_DISPATCH_TOKEN is not set; the tap's scheduled bump job will pick this release up instead."
+            exit 0
+          fi
+          curl --fail-with-body -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $TAP_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/momenbasel/homebrew-puresnitch/dispatches \
+            -d "$(printf '{"event_type":"puresnitch-release","client_payload":{"version":"%s","sha256":"%s"}}' \
+                  "${{ steps.release.outputs.version }}" "${{ steps.release.outputs.sha256 }}")"
+          echo "Dispatched cask bump to ${{ steps.release.outputs.version }}"

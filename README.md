@@ -43,28 +43,40 @@
 ## Install
 
 ```bash
-brew trust momenbasel/puresnitch
-brew install --cask momenbasel/puresnitch/puresnitch
+brew tap momenbasel/puresnitch
+brew trust --tap momenbasel/puresnitch
+brew install --cask puresnitch
 ```
 
-Homebrew 6 requires explicit trust before it evaluates third-party tap code.
-The tap contains the PureSnitch cask and its one-time upgrade migration formula.
+Homebrew 6 refuses to evaluate code from a third-party tap until you trust it,
+so installing without the middle line fails with `Refusing to load cask
+momenbasel/puresnitch/puresnitch from untrusted tap`. That `brew trust` line is
+a one-time opt-in recorded in `~/.homebrew/trust.json`; you never need to repeat
+it. Upgrade later with `brew upgrade --cask puresnitch`.
 
-For upgrades from a pre-v0.2.1 cask, the tap takes a validated recovery-only
-snapshot before Homebrew removes the old support directory. That user-owned
-snapshot is never restored automatically or trusted as root firewall state;
-do not copy it into `/Library/Application Support/PureSnitch` or pass it to the
-helper. Open the signed app promptly after upgrading. **Decide Later** is the
-only choice that preserves legacy rules unchanged. If the current v0.2.1 rule
-store is empty, **Keep On** is disabled rather than replacing those rules with
-an empty ruleset; **Turn Off** intentionally removes them. A previous enabled
-state never auto-approves this replacement. With **Keep On**, non-default,
-allow, process-only, domain-only, disabled, expired, or otherwise non-renderable
-rules do not survive as host-wide `pf` rules.
+Homebrew installs the same signed, notarized DMG that is attached to the
+release, and the tap is bumped automatically whenever a release is published, so
+`brew` and the Releases page do not drift apart.
+
+If you are upgrading from **v0.1.0 or v0.2.0**, open the app once afterwards.
+When the helper reports preserved legacy `pf` state, PureSnitch asks what to do
+with it before touching anything. **Decide Later** is the default and the only
+choice that leaves every legacy rule unchanged. **Keep On** replaces them with
+the current v0.2.1 rule store — non-default, allow, process-only, domain-only,
+disabled, expired, or otherwise non-renderable rules do not survive as host-wide
+`pf` rules — and it is disabled outright when the current store is empty, so an
+empty ruleset can never silently replace a live firewall. **Turn Off** removes
+the legacy state deliberately. A previously enabled state is never treated as
+approval for that replacement.
 
 Before `brew uninstall` or `brew uninstall --zap`, turn Enforcement Off and
-choose Remove Helper in the signed app. Homebrew intentionally does not mutate
-PF state or delete the root support database during uninstall.
+choose Remove Helper in the app. Uninstalling quits PureSnitch, unloads the
+helper, and removes the login item, but it deliberately does not mutate `pf`
+state or delete the root-owned database under `/Library/Application
+Support/PureSnitch`. Homebrew cannot tell a live firewall from an abandoned one,
+and deleting rules out from under an active `pf` anchor would leave the Mac
+enforcing rules that nothing can inspect. Remove Helper does that teardown in
+the right order.
 
 Or download the signed, notarized `.dmg` from [Releases](https://github.com/momenbasel/puresnitch/releases/latest) and drag PureSnitch into `/Applications`. No Gatekeeper warnings, no quarantine workaround.
 

@@ -21,9 +21,12 @@
 ## Instalar
 
 ```bash
-brew trust momenbasel/puresnitch
-brew install --cask momenbasel/puresnitch/puresnitch
+brew tap momenbasel/puresnitch
+brew trust --tap momenbasel/puresnitch
+brew install --cask puresnitch
 ```
+
+Homebrew 6 se niega a cargar casks de un tap de terceros hasta que confías en él, por eso la línea `brew trust` hace falta una sola vez. Para actualizar más adelante usa `brew upgrade --cask puresnitch`.
 
 O descarga el `.dmg` firmado y notarizado desde [Releases](https://github.com/momenbasel/puresnitch/releases/latest) y arrastra PureSnitch a `/Applications`.
 
