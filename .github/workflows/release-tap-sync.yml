@@ -25,39 +25,55 @@ jobs:
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
+          # Via env, never interpolated into the script body: a tag name is
+          # attacker-shaped input the moment anyone else can cut a release.
           INPUT_TAG: ${{ inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          TAG="${INPUT_TAG:-${{ github.event.release.tag_name || '' }}}"
+          TAG="${INPUT_TAG:-$EVENT_TAG}"
           if [ -z "$TAG" ]; then
             TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
           fi
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::refusing to act on an unexpected tag: $TAG"; exit 1 ;;
+          esac
           VERSION="${TAG#v}"
           ASSET="PureSnitch-${VERSION}.dmg"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
 
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$ASSET" --dir .
           SHA=$(sha256sum "$ASSET" | cut -d' ' -f1)
-          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "asset=$ASSET"
+            echo "sha256=$SHA"
+          } >> "$GITHUB_OUTPUT"
           echo "::notice::$ASSET sha256=$SHA"
 
       - name: Dispatch the cask bump
         env:
           # Fine-grained PAT with Contents: write on momenbasel/homebrew-puresnitch.
           TAP_TOKEN: ${{ secrets.TAP_DISPATCH_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+          SHA256: ${{ steps.release.outputs.sha256 }}
         run: |
           set -euo pipefail
           if [ -z "${TAP_TOKEN:-}" ]; then
             echo "::warning::TAP_DISPATCH_TOKEN is not set; the tap's scheduled bump job will pick this release up instead."
             exit 0
           fi
+          # The tap recomputes the checksum from the published asset regardless.
+          # This payload only says which release to look at.
+          PAYLOAD=$(jq -nc \
+            --arg version "$VERSION" \
+            --arg sha256 "$SHA256" \
+            '{event_type: "puresnitch-release", client_payload: {version: $version, sha256: $sha256}}')
           curl --fail-with-body -sS -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $TAP_TOKEN" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/momenbasel/homebrew-puresnitch/dispatches \
-            -d "$(printf '{"event_type":"puresnitch-release","client_payload":{"version":"%s","sha256":"%s"}}' \
-                  "${{ steps.release.outputs.version }}" "${{ steps.release.outputs.sha256 }}")"
-          echo "Dispatched cask bump to ${{ steps.release.outputs.version }}"
+            -d "$PAYLOAD"
+          echo "Dispatched cask bump to $VERSION"
