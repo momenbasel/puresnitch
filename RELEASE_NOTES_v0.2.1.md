@@ -26,11 +26,11 @@ monitor build.
   active console, re-authorized every request, and protected helper state with
   root-only permissions. Helper-owned enforcement state now survives process
   restarts.
-- Added a one-time Homebrew upgrade bridge that takes a validated recovery-only
-  snapshot before the legacy cask receipt removes its support directory. The
-  user-owned snapshot is never promoted automatically into the root helper;
-  legacy PF state remains unchanged until the signed app gets an explicit
-  Keep On or Turn Off decision.
+- Gated the legacy `pf` handover behind an explicit in-app decision. When the
+  helper reports preserved legacy state, the app leaves it untouched until the
+  user picks Keep On or Turn Off; a previously enabled state is never treated
+  as approval, and Keep On is refused outright when the current rule store is
+  empty.
 - Hardened release checks for version/build metadata, universal architectures,
   Developer ID signatures, hardened runtime, notarization, and stapling.
 - Corrected Homebrew installation and product documentation.
@@ -38,28 +38,30 @@ monitor build.
 ## Install
 
 ```bash
-brew trust momenbasel/puresnitch
-brew install --cask momenbasel/puresnitch/puresnitch
+brew tap momenbasel/puresnitch
+brew trust --tap momenbasel/puresnitch
+brew install --cask puresnitch
 ```
+
+Homebrew 6 refuses to load casks from an untrusted third-party tap, which is why
+the `brew trust` line is required once. Upgrade later with
+`brew upgrade --cask puresnitch`.
 
 Or download the signed and notarized DMG below and drag PureSnitch into
 `/Applications`.
 
-After a Homebrew upgrade, open the signed app promptly and resolve its legacy
-firewall prompt. **Decide Later** is the only choice that preserves legacy rules
-unchanged. The retained snapshot is recovery-only and is not imported by
-v0.2.1; do not copy it into the root support directory or pass it to the helper.
-When the current store is empty, **Keep On** is disabled instead of replacing
-legacy rules with an empty ruleset. **Turn Off** intentionally removes those
-rules. A previous enabled state never auto-approves ruleset replacement. With
-**Keep On**, non-default, allow, process-only, domain-only, disabled, expired,
-or otherwise non-renderable rules do not survive as host-wide `pf` rules. If
-an upgrade rolls back, do not launch the old app before retrying
-because it can create new data outside the snapshot.
+After upgrading from v0.1.0 or v0.2.0, open the app once and resolve its legacy
+firewall prompt. **Decide Later** is the default and the only choice that
+preserves legacy rules unchanged. When the current store is empty, **Keep On**
+is disabled instead of replacing legacy rules with an empty ruleset. **Turn
+Off** intentionally removes those rules. A previous enabled state never
+auto-approves ruleset replacement. With **Keep On**, non-default, allow,
+process-only, domain-only, disabled, expired, or otherwise non-renderable rules
+do not survive as host-wide `pf` rules.
 
 Before Homebrew uninstall or zap, turn Enforcement Off and choose Remove Helper
-inside the signed app. Homebrew deliberately does not alter PF state or delete
-the root support database.
+inside the app. Homebrew deliberately does not alter PF state or delete the
+root support database.
 
 ## Current limitations
 
@@ -75,8 +77,9 @@ the root support database.
   are one-time; per-process, domain, and allow rules are not emitted to `pf`.
 - Traffic totals are process aggregates. Per-connection byte accounting and
   live IP geolocation are not included in this release.
-- Homebrew preserves a full pre-v0.2.1 database snapshot for future signed,
-  record-level recovery tooling, but v0.2.1 does not import it automatically.
+- Homebrew does not snapshot or restore the root-owned rule database. It is
+  left in place on uninstall precisely so nothing outside the signed app can
+  rewrite live firewall state.
 - Releases before v0.2.1 enabled `pf` without retaining a releasable reference
   token. If legacy enforcement remains enabled after upgrading or uninstalling,
   one Mac restart clears that unrecoverable legacy reference.

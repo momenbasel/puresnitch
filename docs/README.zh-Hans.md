@@ -21,9 +21,12 @@
 ## 安装
 
 ```bash
-brew trust momenbasel/puresnitch
-brew install --cask momenbasel/puresnitch/puresnitch
+brew tap momenbasel/puresnitch
+brew trust --tap momenbasel/puresnitch
+brew install --cask puresnitch
 ```
+
+Homebrew 6 在你信任第三方 tap 之前不会加载其中的 cask，因此需要执行一次 `brew trust`。之后升级请使用 `brew upgrade --cask puresnitch`。
 
 或从 [Releases](https://github.com/momenbasel/puresnitch/releases/latest) 下载签名并公证的 `.dmg`，然后将 PureSnitch 拖入 `/Applications`。
 
