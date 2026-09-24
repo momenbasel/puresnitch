@@ -331,6 +331,10 @@ Especially welcome:
 - [1Hosts](https://github.com/badmojr/1Hosts), [OISD](https://oisd.nl/), [StevenBlack](https://github.com/StevenBlack/hosts) and [HaGeZi](https://github.com/hagezi/dns-blocklists) for the blocklist work everyone in this space stands on top of
 - Cloudflare, Quad9 and Google for free public DoH resolvers
 
+## Also try
+
+[JMacy](https://jmacy.xyz) - the best and fastest downloader for macOS. Multi-connection segmented downloads that saturate your line, plus browser capture and torrents.
+
 ## License
 
 MIT. See [LICENSE](LICENSE). Use it, fork it, ship it under your own name if you want — the only thing the license asks is that the notice stays.
