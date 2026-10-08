@@ -18,7 +18,7 @@ if CommandLine.arguments.dropFirst().first == "--cleanup" {
     }
     do {
         try HelperSecurityState.prepareSupportDirectory(at: "/Library/Application Support/PureSnitch")
-        try PFManager().cleanupOrphanedStateForStandaloneProcess()
+        try PFManager().cleanupOrphanedStateForStandaloneProcess(waitingForDaemonExitUpTo: 10)
         PSLog.info(PSLog.helper, "PureSnitch PF cleanup completed")
         exit(0)
     } catch {

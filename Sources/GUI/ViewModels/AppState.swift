@@ -33,6 +33,7 @@ final class AppState: ObservableObject {
     @Published var topDomains: [DomainStats] = []
     @Published var topCountries: [CountryStats] = []
     @Published var searchQuery: String = ""
+    weak var systemExtension: SystemExtensionManager?
 
     /// Menu-bar speed readout. Off by default: the status item is a plain
     /// template glyph unless the user asks for numbers.

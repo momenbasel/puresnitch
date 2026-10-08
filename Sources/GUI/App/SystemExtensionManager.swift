@@ -24,6 +24,7 @@ final class SystemExtensionManager: NSObject, ObservableObject {
     private let extensionIdentifier = AppConstants.bundleIdNetExt
     private let log = OSLog(subsystem: AppConstants.bundleIdGUI, category: "sysext")
     private var bridge: AppCommunicationBridge?
+    private var deactivationRequest: OSSystemExtensionRequest?
 
     init(state: AppState) {
         self.state = state
@@ -48,12 +49,18 @@ final class SystemExtensionManager: NSObject, ObservableObject {
         OSSystemExtensionManager.shared.submitRequest(request)
     }
 
+    /// Teardown is sequenced: the filter configuration is removed, not just
+    /// disabled, and the extension is deactivated only once that write has
+    /// landed, so no "PureSnitch" row outlives the app in network preferences.
     func deactivate() {
-        disableFilter()
         guard hasEmbeddedExtension else { return }
-        let request = OSSystemExtensionRequest.deactivationRequest(forExtensionWithIdentifier: extensionIdentifier, queue: .main)
-        request.delegate = self
-        OSSystemExtensionManager.shared.submitRequest(request)
+        removeFilterConfiguration { [weak self] in
+            guard let self else { return }
+            let request = OSSystemExtensionRequest.deactivationRequest(forExtensionWithIdentifier: self.extensionIdentifier, queue: .main)
+            request.delegate = self
+            self.deactivationRequest = request
+            OSSystemExtensionManager.shared.submitRequest(request)
+        }
     }
 
     // MARK: - Content filter configuration
@@ -88,12 +95,30 @@ final class SystemExtensionManager: NSObject, ObservableObject {
         }
     }
 
-    private func disableFilter() {
+    private func removeFilterConfiguration(completion: @escaping () -> Void) {
         let mgr = NEFilterManager.shared()
-        mgr.loadFromPreferences { error in
-            guard error == nil else { return }
-            mgr.isEnabled = false
-            mgr.saveToPreferences { _ in }
+        mgr.loadFromPreferences { [weak self] loadError in
+            DispatchQueue.main.async {
+                if let loadError {
+                    self?.state?.appendLog(level: "error",
+                                           message: "filter load during teardown: \(loadError.localizedDescription)")
+                    completion()
+                    return
+                }
+                // removeFromPreferences errors when nothing is persisted, so a
+                // clean teardown would otherwise log a spurious failure.
+                guard mgr.providerConfiguration != nil else { completion(); return }
+                mgr.isEnabled = false
+                mgr.removeFromPreferences { removeError in
+                    DispatchQueue.main.async {
+                        if let removeError {
+                            self?.state?.appendLog(level: "error",
+                                                   message: "filter remove: \(removeError.localizedDescription)")
+                        }
+                        completion()
+                    }
+                }
+            }
         }
     }
 
@@ -120,6 +145,14 @@ extension SystemExtensionManager: OSSystemExtensionRequestDelegate {
     nonisolated func request(_ request: OSSystemExtensionRequest,
                              didFinishWithResult result: OSSystemExtensionRequest.Result) {
         Task { @MainActor in
+            if request === self.deactivationRequest {
+                self.deactivationRequest = nil
+                self.status = .idle
+                self.state?.appendLog(level: "info", message: result == .completed
+                                      ? "Network extension deactivated."
+                                      : "Network extension deactivates after reboot.")
+                return
+            }
             if result == .completed {
                 self.enableFilter()
             } else {
@@ -129,7 +162,14 @@ extension SystemExtensionManager: OSSystemExtensionRequestDelegate {
     }
 
     nonisolated func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
-        Task { @MainActor in self.fail("Extension activation failed: \(error.localizedDescription)") }
+        Task { @MainActor in
+            if request === self.deactivationRequest {
+                self.deactivationRequest = nil
+                self.fail("Extension deactivation failed: \(error.localizedDescription)")
+                return
+            }
+            self.fail("Extension activation failed: \(error.localizedDescription)")
+        }
     }
 
     nonisolated func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {

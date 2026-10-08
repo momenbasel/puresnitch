@@ -164,6 +164,27 @@ final class PFManager: @unchecked Sendable {
         }
     }
 
+    /// `launchctl remove` signals the daemon and returns without waiting, so
+    /// the cask's `--cleanup` can arrive while the helper is still draining.
+    /// Poll for absence instead of asserting it once; only a daemon that is
+    /// still alive at the deadline is a failure.
+    func cleanupOrphanedStateForStandaloneProcess(
+        waitingForDaemonExitUpTo timeout: TimeInterval,
+        pollInterval: TimeInterval = 0.5,
+        sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) },
+        now: () -> Date = Date.init
+    ) throws {
+        let deadline = now().addingTimeInterval(timeout)
+        while true {
+            do {
+                try cleanupOrphanedStateForStandaloneProcess()
+                return
+            } catch HelperDaemonCleanupGateError.daemonIsRunning where now() < deadline {
+                sleep(pollInterval)
+            }
+        }
+    }
+
     var isLoaded: Bool { queue.sync { loaded } }
     var latestLegacyReconciliationSucceeded: Bool? {
         queue.sync { legacyReconciliationSucceeded }

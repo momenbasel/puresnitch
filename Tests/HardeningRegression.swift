@@ -1655,6 +1655,142 @@ private func requireID(_ id: UUID?) throws -> UUID {
     return id
 }
 
+private func testNettopFrameDifferencing() throws {
+    try require(NettopFrameDiffer.parseFrame("") == nil, "empty nettop output parsed as a frame")
+    try require(NettopFrameDiffer.parseFrame("launchd.1,0,0,\n") == nil, "headerless nettop output parsed as a frame")
+
+    let header = ",bytes_in,bytes_out,\n"
+    let baseline = try requireFrame(header + "launchd.1,0,0,\napsd.379,1000,500,\nSafari,Helper.901,40,20,\n")
+    try require(baseline.count == 3, "nettop frame lost a process row")
+    try require(
+        baseline["Safari,Helper.901"] == NettopCounters(bytesIn: 40, bytesOut: 20),
+        "a process name containing a comma was split into the counters"
+    )
+
+    var differ = NettopFrameDiffer()
+    try require(differ.ingest(baseline) == nil, "first nettop frame emitted a rate instead of seeding the baseline")
+
+    let steady = try requireFrame(header + "launchd.1,0,0,\napsd.379,1600,900,\nSafari,Helper.901,40,20,\n")
+    try require(
+        differ.ingest(steady) == NettopCounters(bytesIn: 600, bytesOut: 400),
+        "per-process increases were not summed"
+    )
+
+    // apsd closed sockets and fell below its last value, Safari exited, curl is new.
+    let churn = try requireFrame(header + "launchd.1,0,0,\napsd.379,200,900,\ncurl.1200,5000,300,\n")
+    try require(
+        differ.ingest(churn) == NettopCounters(bytesIn: 5000, bytesOut: 300),
+        "a socket drop re-baselined other processes or produced a negative delta"
+    )
+
+    differ.reset()
+    try require(differ.ingest(churn) == nil, "reset differ did not re-seed its baseline")
+}
+
+private func requireFrame(_ text: String) throws -> [String: NettopCounters] {
+    guard let frame = NettopFrameDiffer.parseFrame(text) else {
+        throw RegressionFailure(description: "nettop frame with a header failed to parse")
+    }
+    return frame
+}
+
+private func testStandalonePFCleanupBoundedWait() throws {
+    try withTemporaryDirectory { directory in
+        let pfConfURL = directory.appendingPathComponent("pf.conf")
+        try "set skip on lo0\n".write(to: pfConfURL, atomically: true, encoding: .utf8)
+
+        func makeManager(name: String, gate: @escaping () throws -> Void) -> PFManager {
+            PFManager(
+                commandRunner: { _, _ in "" },
+                anchorPath: directory.appendingPathComponent("\(name)-anchor").path,
+                enableTokenPath: directory.appendingPathComponent("\(name)-token").path,
+                processLockPath: directory.appendingPathComponent("\(name)-lock").path,
+                legacyAnchorPath: directory.appendingPathComponent("\(name)-legacy").path,
+                legacyPFConfPath: pfConfURL.path,
+                daemonAbsenceChecker: gate
+            )
+        }
+
+        var clock = Date(timeIntervalSince1970: 0)
+        var sleeps: [TimeInterval] = []
+        var probes = 0
+        let draining = makeManager(name: "draining") {
+            probes += 1
+            if probes < 3 { throw HelperDaemonCleanupGateError.daemonIsRunning }
+        }
+        try draining.cleanupOrphanedStateForStandaloneProcess(
+            waitingForDaemonExitUpTo: 10,
+            pollInterval: 0.5,
+            sleep: { sleeps.append($0); clock.addTimeInterval($0) },
+            now: { clock }
+        )
+        try require(probes == 3 && sleeps == [0.5, 0.5], "cleanup did not poll until the draining daemon was gone")
+
+        clock = Date(timeIntervalSince1970: 0)
+        var stuckProbes = 0
+        let stuck = makeManager(name: "stuck") {
+            stuckProbes += 1
+            throw HelperDaemonCleanupGateError.daemonIsRunning
+        }
+        var timedOut = false
+        do {
+            try stuck.cleanupOrphanedStateForStandaloneProcess(
+                waitingForDaemonExitUpTo: 2,
+                pollInterval: 0.5,
+                sleep: { clock.addTimeInterval($0) },
+                now: { clock }
+            )
+        } catch HelperDaemonCleanupGateError.daemonIsRunning {
+            timedOut = true
+        }
+        try require(
+            timedOut && stuckProbes == 5,
+            "a daemon still alive at the deadline was not reported (probes=\(stuckProbes))"
+        )
+
+        var unknownProbes = 0
+        let unknown = makeManager(name: "unknown") {
+            unknownProbes += 1
+            throw HelperDaemonCleanupGateError.daemonStateUnknown(1)
+        }
+        try requireThrows("an unverifiable daemon state was retried instead of failing fast") {
+            try unknown.cleanupOrphanedStateForStandaloneProcess(
+                waitingForDaemonExitUpTo: 10,
+                pollInterval: 0.5,
+                sleep: { _ in },
+                now: { clock }
+            )
+        }
+        try require(unknownProbes == 1, "unknown daemon state was probed \(unknownProbes) times")
+    }
+}
+
+private func testHelperBundlePresence() throws {
+    let label = "io.moamenbasel.puresnitch.helper"
+    try require(
+        HelperBundlePresence.launchdPlistPath(
+            forHelperExecutable: "/Applications/PureSnitch.app/Contents/MacOS/PureSnitchHelper",
+            label: label
+        ) == "/Applications/PureSnitch.app/Contents/Library/LaunchDaemons/\(label).plist",
+        "bundled helper did not resolve its launchd definition"
+    )
+    try require(
+        HelperBundlePresence.launchdPlistPath(forHelperExecutable: "/usr/local/bin/PureSnitchHelper", label: label) == nil,
+        "a helper outside a bundle was given a plist to watch"
+    )
+    try require(
+        HelperBundlePresence.launchdPlistPath(forHelperExecutable: "PureSnitchHelper", label: label) == nil,
+        "a relative executable path was given a plist to watch"
+    )
+
+    var presence = HelperBundlePresence(retireAfter: 2)
+    try require(!presence.observe(plistPresent: true), "a present plist asked the helper to retire")
+    try require(!presence.observe(plistPresent: false), "one miss retired the helper inside the replace-on-copy window")
+    try require(!presence.observe(plistPresent: true), "a plist that came back did not reset the miss count")
+    try require(!presence.observe(plistPresent: false), "the miss count survived a reset")
+    try require(presence.observe(plistPresent: false), "two consecutive misses did not retire the helper")
+}
+
 private func testStandalonePFCleanupGate() throws {
     let serviceLabel = "io.moamenbasel.puresnitch.helper"
     var checkedTarget: String?
@@ -2468,6 +2604,9 @@ private enum HardeningRegression {
             ("database restore", testDatabaseRestore),
             ("connection history retention", testConnectionHistoryRetention),
             ("pending DNS asks", testPendingDNSAsks),
+            ("nettop frame differencing", testNettopFrameDifferencing),
+            ("standalone PF cleanup bounded wait", testStandalonePFCleanupBoundedWait),
+            ("helper bundle presence", testHelperBundlePresence),
             ("standalone PF cleanup gate", testStandalonePFCleanupGate),
             ("PF legacy reconciliation health", testPFLegacyReconciliationHealth),
             ("PF lifecycle and rendering", testPFManagerLifecycleAndRendering),
