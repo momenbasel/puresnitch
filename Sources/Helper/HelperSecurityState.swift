@@ -87,6 +87,39 @@ enum HelperDaemonCleanupGate {
     }
 }
 
+struct HelperBundlePresence {
+    /// `<App>.app/Contents/MacOS/PureSnitchHelper` maps to
+    /// `<App>.app/Contents/Library/LaunchDaemons/<label>.plist`. Nil outside a
+    /// bundle, which disables the watchdog instead of retiring a helper that
+    /// never had a plist to lose.
+    static func launchdPlistPath(forHelperExecutable executablePath: String, label: String) -> String? {
+        let executable = URL(fileURLWithPath: executablePath).standardizedFileURL
+        let macOSDirectory = executable.deletingLastPathComponent()
+        guard macOSDirectory.lastPathComponent == "MacOS" else { return nil }
+        let contents = macOSDirectory.deletingLastPathComponent()
+        guard contents.lastPathComponent == "Contents" else { return nil }
+        return contents.appendingPathComponent("Library/LaunchDaemons/\(label).plist").path
+    }
+
+    let retireAfter: Int
+    private(set) var consecutiveMisses = 0
+
+    init(retireAfter: Int) {
+        self.retireAfter = retireAfter
+    }
+
+    /// Finder's replace-on-copy removes the old bundle before the new one
+    /// lands, so one miss is not evidence of an uninstall.
+    mutating func observe(plistPresent: Bool) -> Bool {
+        if plistPresent {
+            consecutiveMisses = 0
+            return false
+        }
+        consecutiveMisses += 1
+        return consecutiveMisses >= retireAfter
+    }
+}
+
 enum HelperSecurityState {
     static let desiredSettingKey = "enforcement_desired"
     static let ownerUIDSettingKey = "owner_uid"

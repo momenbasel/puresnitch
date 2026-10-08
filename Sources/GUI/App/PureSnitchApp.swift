@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // no-op unless this build embeds one — the monitor-only release does
         // not, so no extension approval prompt appears.
         systemExtension = SystemExtensionManager(state: state)
+        state.systemExtension = systemExtension
         if ProcessInfo.processInfo.environment["PURESNITCH_DEMO"] != "1" {
             systemExtension.activate()
         }

@@ -23,6 +23,9 @@ struct SettingsView: View {
             titleVisibility: .visible
         ) {
             Button("Remove Helper", role: .destructive) {
+                // One action retires the helper, the pf anchor, the system
+                // extension and its filter record together (issue #18).
+                state.systemExtension?.deactivate()
                 state.helper.unregisterDaemon()
             }
             Button("Cancel", role: .cancel) {}
