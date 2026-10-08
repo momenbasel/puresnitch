@@ -412,7 +412,7 @@ public struct AppConstants {
     public static let appGroup = "H3WXHVTP97.io.moamenbasel.puresnitch"
     public static let teamID = "H3WXHVTP97"
     public static let version: String =
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.1"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.2"
     public static let dnsProxyPort: UInt16 = 53
     public static let defaultDoHUpstream = "https://cloudflare-dns.com/dns-query"
 

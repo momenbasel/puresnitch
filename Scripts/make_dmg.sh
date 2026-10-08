@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-VERSION="${VERSION:-0.2.1}"
-BUILD_NUMBER="${BUILD_NUMBER:-3}"
+VERSION="${VERSION:-0.2.2}"
+BUILD_NUMBER="${BUILD_NUMBER:-4}"
 APP_BUNDLE="$ROOT/build/release/Build/Products/Release/PureSnitch.app"
 DMG_DIR="$ROOT/build/dmg_staging"
 DMG="$ROOT/artifacts/PureSnitch-${VERSION}.dmg"

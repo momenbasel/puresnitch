@@ -2,19 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key>
-    <string>io.moamenbasel.puresnitch.helper</string>
-    <key>CFBundleName</key>
-    <string>PureSnitchHelper</string>
-    <key>CFBundleVersion</key>
-    <string>3</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.2.1</string>
-    <key>CFBundlePackageType</key>
-    <string>XPC!</string>
-    <key>SMAuthorizedClients</key>
-    <array>
-        <string>identifier "io.moamenbasel.puresnitch" and anchor apple generic and certificate leaf[subject.OU] = "H3WXHVTP97"</string>
-    </array>
+	<key>CFBundleIdentifier</key>
+	<string>io.moamenbasel.puresnitch.helper</string>
+	<key>CFBundleName</key>
+	<string>PureSnitchHelper</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.2.2</string>
+	<key>CFBundleVersion</key>
+	<string>4</string>
+	<key>SMAuthorizedClients</key>
+	<array>
+		<string>identifier "io.moamenbasel.puresnitch" and anchor apple generic and certificate leaf[subject.OU] = "H3WXHVTP97"</string>
+	</array>
 </dict>
 </plist>

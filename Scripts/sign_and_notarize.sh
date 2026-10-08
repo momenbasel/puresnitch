@@ -11,8 +11,8 @@ NOTARY_PROFILE="puresnitch-notary"
 APP_ENT="$ROOT/Sources/GUI/PureSnitch.entitlements"
 HELPER_ENT="$ROOT/Sources/Helper/Helper.entitlements"
 NETEXT_ENT="$ROOT/Sources/NetExt/NetExt.entitlements"
-VERSION="${VERSION:-0.2.1}"
-BUILD_NUMBER="${BUILD_NUMBER:-3}"
+VERSION="${VERSION:-0.2.2}"
+BUILD_NUMBER="${BUILD_NUMBER:-4}"
 NOTARIZE="${NOTARIZE:-1}"
 
 fail() {

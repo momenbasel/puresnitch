@@ -62,7 +62,7 @@ If you are upgrading from **v0.1.0 or v0.2.0**, open the app once afterwards.
 When the helper reports preserved legacy `pf` state, PureSnitch asks what to do
 with it before touching anything. **Decide Later** is the default and the only
 choice that leaves every legacy rule unchanged. **Keep On** replaces them with
-the current v0.2.1 rule store — non-default, allow, process-only, domain-only,
+the current v0.2.2 rule store — non-default, allow, process-only, domain-only,
 disabled, expired, or otherwise non-renderable rules do not survive as host-wide
 `pf` rules — and it is disabled outright when the current store is empty, so an
 empty ruleset can never silently replace a live firewall. **Turn Off** removes
@@ -124,10 +124,10 @@ What PureSnitch is **honest** about: the shipping build does not have Apple's Ne
 ## What it does
 
 ### Network Monitor
-A live connection table with a per-process bandwidth sidebar and traffic summary. Sort, filter, and inspect the hosts seen for each process. The map UI is present, but v0.2.1 does not perform live IP geolocation or attach byte totals to individual connections.
+A live connection table with a per-process bandwidth sidebar and traffic summary. Sort, filter, and inspect the hosts seen for each process. The map UI is present, but v0.2.2 does not perform live IP geolocation or attach byte totals to individual connections.
 
 ### Rules Manager
-A rules browser for All Rules, Active, Deny, Temporary, and Unapproved categories, plus Rule Groups and Blocklists in the sidebar. Existing rules can be searched, enabled, disabled, or deleted. In v0.2.1, persistent rule creation is available only from a DNS-proxy alert; the toolbar's general add/import/export controls are not implemented.
+A rules browser for All Rules, Active, Deny, Temporary, and Unapproved categories, plus Rule Groups and Blocklists in the sidebar. Existing rules can be searched, enabled, disabled, or deleted. In v0.2.2, persistent rule creation is available only from a DNS-proxy alert; the toolbar's general add/import/export controls are not implemented.
 
 ### Connection Alerts
 The alert UI supports one-time Allow / Deny decisions or a permanent rule for the validated domain or IPv4 endpoint. In the shipping build it is used only for `ask` decisions made by the experimental DNS proxy. Passively observed app sockets are not paused; arbitrary per-process flow prompts require the non-shipping Network Extension build. Alert, Silent Allow, and Silent Deny control the proxy fallback policy.
@@ -136,7 +136,7 @@ The alert UI supports one-time Allow / Deny decisions or a permanent rule for th
 Experimental local DNS proxy with a built-in DoH client for Cloudflare, Quad9, Google, or a custom HTTPS endpoint. It binds to loopback and applies domain rules only to DNS requests sent to it manually. It does not intercept `getaddrinfo`, replace the macOS resolver, or change network-service DNS settings.
 
 ### Blocklist Library
-1Hosts, OISD, StevenBlack, and HaGeZi are included. Enabled built-in lists refresh when the helper starts and when you request a refresh. v0.2.1 does not provide a UI or XPC API for adding custom blocklist URLs.
+1Hosts, OISD, StevenBlack, and HaGeZi are included. Enabled built-in lists refresh when the helper starts and when you request a refresh. v0.2.2 does not provide a UI or XPC API for adding custom blocklist URLs.
 
 ### Packet-Level Blocking
 A runtime `com.apple/puresnitch` anchor in `pfctl` for deny rules targeting IPv4 addresses, CIDR ranges, and ports at the kernel. These rules are host-wide; per-process, domain, allow, and non-default-profile rules are not emitted to `pf`.
@@ -257,6 +257,7 @@ If per-process kernel filtering matters to you today, use **LuLu** — it's free
 - [x] **v0.1.0** — Initial signed and notarized arm64 release.
 - [x] **v0.2.0** — Universal macOS 13+ monitor build, rules UI, blocklists, and opt-in `pf` enforcement.
 - [x] **v0.2.1** — DNS/PF safety hardening and release reliability fixes.
+- [x] **v0.2.2** - Helper CPU fix, uninstall teardown, and NE filter removal.
 - [ ] **Future** — Ship the `NEFilterDataProvider` path after Apple grants the required entitlement and provisioning profiles.
 - [ ] **v0.3.0** — Internet Access Policy (`.lsiap`) file support, on par with Little Snitch's IAP feature. Other firewalls can read the same file.
 - [ ] **v0.4.0** — iCloud sync of rule sets between Macs.
