@@ -1,523 +1,91 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PureSnitch — open-source application firewall for macOS</title>
-<meta name="description" content="Free, open-source network monitor for macOS with opt-in pf rules, an experimental manual DNS-over-HTTPS proxy, and zero telemetry. Signed, notarized, MIT licensed.">
-<meta name="theme-color" content="#0f0a07">
-<link rel="canonical" href="https://momenbasel.github.io/puresnitch/">
-<link rel="icon" href="https://raw.githubusercontent.com/momenbasel/puresnitch/main/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128%402x.png">
-
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PureSnitch | Free network monitor for macOS</title>
+<meta name="description" content="See your Mac's connections and app bandwidth with PureSnitch. Free, open-source network monitor with opt-in host-wide firewall rules. macOS 13+, Apple Silicon and Intel.">
+<meta name="theme-color" content="#141311">
+<link rel="canonical" href="https://www.moamenbasel.com/puresnitch/">
+<link rel="icon" href="app-icon.png" type="image/png">
+<link rel="stylesheet" href="site.css">
 <meta property="og:type" content="website">
-<meta property="og:title" content="PureSnitch — open-source application firewall for macOS">
-<meta property="og:description" content="Free, open-source Little Snitch alternative. Zero telemetry. Native SwiftUI. MIT licensed.">
-<meta property="og:url" content="https://momenbasel.github.io/puresnitch/">
-<meta property="og:image" content="https://raw.githubusercontent.com/momenbasel/puresnitch/main/docs/social-preview.png">
-<meta property="og:image:width" content="1280">
-<meta property="og:image:height" content="640">
+<meta property="og:title" content="PureSnitch | Know your Mac's network">
+<meta property="og:description" content="A free, native Mac network monitor with app bandwidth, connection visibility, and opt-in host-wide firewall rules.">
+<meta property="og:url" content="https://www.moamenbasel.com/puresnitch/">
+<meta property="og:image" content="https://www.moamenbasel.com/puresnitch/screenshot-monitor.png">
+<meta property="og:image:alt" content="PureSnitch Network Monitor interface">
+<meta property="og:image:width" content="1800">
+<meta property="og:image:height" content="1169">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="PureSnitch — open-source application firewall for macOS">
-<meta name="twitter:description" content="Free Little Snitch alternative. Native SwiftUI. Zero telemetry. MIT.">
-<meta name="twitter:image" content="https://raw.githubusercontent.com/momenbasel/puresnitch/main/docs/social-preview.png">
-
+<meta name="twitter:title" content="PureSnitch | Know your Mac's network">
+<meta name="twitter:description" content="Free, open-source network monitoring for macOS. See connections and app bandwidth, with optional host-wide blocking.">
+<meta name="twitter:image" content="https://www.moamenbasel.com/puresnitch/screenshot-monitor.png">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "PureSnitch",
   "applicationCategory": "SecurityApplication",
-  "operatingSystem": "macOS 13+",
+  "operatingSystem": "macOS 13 or later",
+  "softwareVersion": "0.2.2",
   "downloadUrl": "https://github.com/momenbasel/puresnitch/releases/latest",
-  "softwareVersion": "0.2.1",
-  "license": "https://opensource.org/licenses/MIT",
+  "license": "https://github.com/momenbasel/puresnitch/blob/main/LICENSE",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "url": "https://momenbasel.github.io/puresnitch/",
+  "url": "https://www.moamenbasel.com/puresnitch/",
   "author": { "@type": "Person", "name": "Moamen Basel", "url": "https://github.com/momenbasel" },
-  "description": "Free, open-source network monitor for macOS with opt-in pf rules, an experimental manual DNS-over-HTTPS proxy, and zero telemetry. Signed, notarized, MIT licensed.",
-  "screenshot": "https://raw.githubusercontent.com/momenbasel/puresnitch/main/screenshot.png"
+  "description": "Free, open-source network monitor for macOS with app bandwidth and opt-in host-wide IPv4 firewall rules.",
+  "screenshot": "https://www.moamenbasel.com/puresnitch/screenshot-monitor.png"
 }
 </script>
-
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-tailwind.config = {
-  darkMode: 'class',
-  theme: {
-    extend: {
-      fontFamily: {
-        sans: ['-apple-system','BlinkMacSystemFont','"SF Pro Text"','"Inter"','system-ui','sans-serif'],
-        display: ['-apple-system','BlinkMacSystemFont','"SF Pro Display"','"Inter"','system-ui','sans-serif'],
-        mono: ['"SF Mono"','"JetBrains Mono"','ui-monospace','monospace']
-      },
-      colors: {
-        ember: { 50:'#fff4ed', 100:'#ffe6d4', 200:'#ffc8a8', 300:'#ffa371', 400:'#ff7838', 500:'#fa5510', 600:'#eb3d06', 700:'#c32d07', 800:'#9b260f', 900:'#7d2310' },
-        coal:  { 50:'#f7f5f3', 100:'#e9e5e1', 200:'#d0c9c2', 300:'#a89e94', 400:'#7d736a', 500:'#5d544c', 600:'#48413b', 700:'#3a3530', 800:'#2c2825', 900:'#1a1612', 950:'#0f0a07' }
-      },
-      animation: {
-        'pulse-slow': 'pulse 4s cubic-bezier(0.4,0,0.6,1) infinite',
-        'float':      'float 6s ease-in-out infinite',
-        'shimmer':    'shimmer 3s linear infinite'
-      },
-      keyframes: {
-        float:   { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
-        shimmer: { '0%': { backgroundPosition: '-200% 0' }, '100%': { backgroundPosition: '200% 0' } }
-      }
-    }
-  }
-}
-</script>
-
-<style>
-  html { scroll-behavior: smooth; }
-  body { background: radial-gradient(1100px 600px at 50% -10%, rgba(250,85,16,0.18), transparent 70%),
-                     radial-gradient(800px 500px at 100% 30%, rgba(195,45,7,0.12), transparent 70%),
-                     #0f0a07; }
-  .glow-orange { box-shadow: 0 0 80px -10px rgba(250,85,16,0.35), 0 0 20px -5px rgba(250,85,16,0.25); }
-  .gradient-text { background: linear-gradient(135deg, #ffa371 0%, #fa5510 60%, #c32d07 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .shimmer-line { background: linear-gradient(90deg, transparent, rgba(250,85,16,0.4), transparent); background-size: 200% 100%; animation: shimmer 3s linear infinite; }
-  .feature-card { transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease; }
-  .feature-card:hover { transform: translateY(-2px); border-color: rgba(250,85,16,0.4); background: rgba(250,85,16,0.04); }
-  .grid-bg {
-    background-image:
-      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
-    background-size: 48px 48px;
-  }
-  code, pre { font-feature-settings: "calt" 0; }
-  ::selection { background: rgba(250,85,16,0.4); color: white; }
-</style>
+<script src="site.js" defer></script>
 </head>
-
-<body class="font-sans text-coal-100 antialiased min-h-screen">
-
-<header class="sticky top-0 z-50 backdrop-blur-xl bg-coal-950/70 border-b border-coal-800/50">
-  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-    <a href="#" class="flex items-center gap-2.5">
-      <img src="https://raw.githubusercontent.com/momenbasel/puresnitch/main/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128%402x.png" class="w-8 h-8 rounded-lg" alt="">
-      <span class="font-display font-semibold text-lg">PureSnitch</span>
-    </a>
-    <nav class="hidden md:flex items-center gap-7 text-sm text-coal-300">
-      <a href="#features" class="hover:text-white transition">Features</a>
-      <a href="#how" class="hover:text-white transition">How it works</a>
-      <a href="#compare" class="hover:text-white transition">vs Little Snitch</a>
-      <a href="#install" class="hover:text-white transition">Install</a>
-      <a href="#faq" class="hover:text-white transition">FAQ</a>
-      <a href="https://github.com/momenbasel/puresnitch" class="text-coal-400 hover:text-white transition flex items-center gap-1.5">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.27-1.68-1.27-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.69 1.25 3.34.96.1-.74.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.47.11-3.05 0 0 .97-.31 3.18 1.18.92-.26 1.91-.39 2.89-.39.98 0 1.97.13 2.89.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.76.11 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.41-5.25 5.69.41.36.78 1.06.78 2.14 0 1.55-.01 2.79-.01 3.17 0 .31.21.67.79.56C20.71 21.39 24 17.08 24 12 24 5.65 18.85.5 12 .5z"/></svg>
-        GitHub
-      </a>
-    </nav>
-    <a href="#install" class="md:hidden text-sm px-3 py-1.5 rounded-full bg-ember-500/15 text-ember-300 border border-ember-500/30">Install</a>
-  </div>
-</header>
-
-<!-- HERO -->
-<section class="relative overflow-hidden">
-  <div class="absolute inset-0 grid-bg opacity-30 pointer-events-none"></div>
-  <div class="relative max-w-7xl mx-auto px-6 pt-20 pb-16">
-    <div class="flex flex-col items-center text-center gap-6">
-      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-ember-500/10 border border-ember-500/30 text-ember-300 text-xs font-medium">
-        <span class="w-1.5 h-1.5 rounded-full bg-ember-400 animate-pulse"></span>
-        v0.2.1 — signed, notarized, universal
-      </div>
-      <h1 class="font-display font-bold text-5xl md:text-7xl tracking-tight max-w-4xl">
-        See what your Mac is talking to.<br>
-        <span class="gradient-text">Block what you don't trust.</span>
-      </h1>
-      <p class="text-lg md:text-xl text-coal-300 max-w-2xl">
-        Open-source application firewall for macOS. Built in the same style as Little Snitch. Free. MIT-licensed. Zero telemetry.
-      </p>
-      <div class="flex flex-wrap items-center justify-center gap-3 pt-4">
-        <a href="https://github.com/momenbasel/puresnitch/releases/latest"
-           class="group inline-flex items-center gap-2 px-6 py-3 rounded-full bg-ember-500 hover:bg-ember-400 text-white font-medium shadow-lg glow-orange transition">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download for macOS
-        </a>
-        <a href="#install"
-           class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-coal-800/60 hover:bg-coal-800 border border-coal-700 text-white font-medium transition">
-          <span class="font-mono text-sm">brew trust momenbasel/puresnitch &amp;&amp; brew install --cask momenbasel/puresnitch/puresnitch</span>
-        </a>
-        <a href="https://github.com/momenbasel/puresnitch"
-           class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-coal-800/30 hover:bg-coal-800/60 border border-coal-700/50 text-coal-200 font-medium transition">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.27-1.68-1.27-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.69 1.25 3.34.96.1-.74.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.47.11-3.05 0 0 .97-.31 3.18 1.18.92-.26 1.91-.39 2.89-.39.98 0 1.97.13 2.89.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.76.11 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.41-5.25 5.69.41.36.78 1.06.78 2.14 0 1.55-.01 2.79-.01 3.17 0 .31.21.67.79.56C20.71 21.39 24 17.08 24 12 24 5.65 18.85.5 12 .5z"/></svg>
-          Star on GitHub
-        </a>
-      </div>
-      <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 pt-6 text-xs text-coal-400">
-        <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>macOS 13+</span>
-        <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>Apple Silicon + Intel</span>
-        <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>Signed + Notarized</span>
-        <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>MIT License</span>
-        <span class="flex items-center gap-1.5"><span class="w-1 h-1 rounded-full bg-ember-400"></span>No telemetry</span>
-      </div>
-    </div>
-
-    <div class="relative mt-16 md:mt-20 max-w-6xl mx-auto">
-      <div class="absolute inset-0 bg-gradient-to-tr from-ember-600/20 to-ember-400/10 blur-3xl -z-10"></div>
-      <div class="rounded-2xl overflow-hidden border border-coal-700 shadow-2xl glow-orange bg-coal-900">
-        <img src="https://raw.githubusercontent.com/momenbasel/puresnitch/main/screenshot.png" alt="PureSnitch Network Monitor — world map, per-process bandwidth, summary panel" class="w-full">
-      </div>
-      <div class="h-px shimmer-line mt-6 max-w-3xl mx-auto"></div>
-    </div>
-  </div>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><div class="container header-inner">
+<a class="brand" href="#main" aria-label="PureSnitch home"><img src="app-icon.png" width="36" height="36" alt="">PureSnitch</a>
+<nav aria-label="Main navigation"><a class="features-link" href="#features">Features</a><a href="#faq">FAQ</a><a class="nav-install" href="#install">Install</a></nav>
+</div></header>
+<main id="main">
+<section class="hero container" aria-labelledby="hero-title">
+<div class="hero-copy"><p class="eyebrow">Network monitor for Mac</p><h1 id="hero-title">Know your<br>Mac’s network.</h1><p class="hero-description">See active connections and app bandwidth. Add opt-in, host-wide firewall rules. Free, open source, built for macOS.</p><div class="actions"><a class="button primary" href="https://github.com/momenbasel/puresnitch/releases/latest">Download for macOS <span aria-hidden="true">↗</span></a><a class="text-link" href="#install">Installation guide <span aria-hidden="true">↓</span></a></div></div>
+<figure class="hero-visual"><a href="screenshot-monitor.png" aria-label="View full-size Network Monitor screenshot"><img src="screenshot-monitor.png" width="1800" height="1169" alt="PureSnitch Network Monitor with an app sidebar, map view, and traffic summary" fetchpriority="high"></a><figcaption>Network Monitor with demo data. Live IP geolocation and per-connection byte totals are not included in v0.2.2.</figcaption></figure>
 </section>
-
-<!-- WHY -->
-<section class="py-24">
-  <div class="max-w-5xl mx-auto px-6">
-    <div class="text-center mb-14">
-      <p class="text-ember-400 text-sm font-medium tracking-wider uppercase mb-3">Why this exists</p>
-      <h2 class="font-display font-bold text-4xl md:text-5xl tracking-tight">
-        Three choices.<br>None of them great.
-      </h2>
-    </div>
-    <div class="grid md:grid-cols-3 gap-5">
-      <div class="p-6 rounded-2xl border border-coal-800 bg-coal-900/50">
-        <div class="text-2xl font-display font-bold text-coal-100">Paid</div>
-        <h3 class="font-display font-semibold mt-3 text-lg text-white">Little Snitch</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Gold standard UI. World map, rules, alerts. Commercial software.</p>
-      </div>
-      <div class="p-6 rounded-2xl border border-coal-800 bg-coal-900/50">
-        <div class="text-2xl font-display font-bold text-coal-100">Free</div>
-        <h3 class="font-display font-semibold mt-3 text-lg text-white">LuLu</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Excellent per-process kernel filtering. Spartan UI. No map, no graph, no blocklists.</p>
-      </div>
-      <div class="p-6 rounded-2xl border border-coal-800 bg-coal-900/50">
-        <div class="text-2xl font-display font-bold text-coal-100">Bundled</div>
-        <h3 class="font-display font-semibold mt-3 text-lg text-white">macOS Firewall</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Blocks inbound only. Outbound traffic walks right out the front door.</p>
-      </div>
-    </div>
-    <div class="mt-10 p-8 rounded-2xl border border-ember-500/30 bg-gradient-to-br from-ember-500/10 to-ember-700/5">
-      <div class="flex items-start gap-5">
-        <img src="https://raw.githubusercontent.com/momenbasel/puresnitch/main/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128%402x.png" class="w-14 h-14 rounded-xl flex-shrink-0" alt="">
-        <div>
-          <h3 class="font-display font-bold text-2xl text-white">PureSnitch is the fourth choice.</h3>
-          <p class="text-coal-200 mt-2 leading-relaxed">
-            Little Snitch UI muscle memory. LuLu's price. Native SwiftUI, not a port. Developer ID-signed and Apple-notarized. Source on GitHub, MIT, zero telemetry. Built because no one else had built it.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
+<div class="facts-wrap"><ul class="container facts" aria-label="System requirements and licensing"><li>macOS <strong>13+</strong></li><li><strong>Apple Silicon + Intel</strong></li><li><strong>Signed &amp; notarized</strong></li><li>Free under <strong>MIT</strong></li></ul></div>
+<section class="container release" aria-label="Latest release"><div><span class="release-label">v0.2.2</span><p>Lower CPU usage. More reliable traffic rates. Safer helper cleanup.</p></div><a class="text-link" href="https://github.com/momenbasel/puresnitch/releases/tag/v0.2.2">Release notes <span aria-hidden="true">↗</span></a></section>
+<section class="section container" id="features" aria-labelledby="features-title">
+<div class="section-heading"><h2 id="features-title">See the connections.<br>Understand the activity.</h2><p>Keep an eye on your Mac’s traffic from a native SwiftUI app and its menu bar companion.</p></div>
+<div class="feature-grid">
+<article class="feature feature-main"><span class="feature-number" aria-hidden="true">01</span><h3>Connections, by app</h3><p>Browse active connections, sort and filter the monitor, and inspect the hosts associated with each process.</p><p class="feature-note">Bandwidth totals are measured per process.</p></article>
+<article class="feature"><span class="feature-number" aria-hidden="true">02</span><h3>A glance from the menu bar</h3><p>Check upload and download throughput, a five-minute traffic graph, and recent activity without keeping the monitor open.</p></article>
+<article class="feature"><span class="feature-number" aria-hidden="true">03</span><h3>Blocking you opt into</h3><p>Enable host-wide deny rules for IPv4 addresses, CIDR ranges, and ports using macOS’s packet filter.</p><p class="feature-note">Rules apply across the Mac, not to individual apps.</p></article>
+<article class="feature feature-dns"><span class="feature-number" aria-hidden="true">04</span><h3>Explore DNS filtering</h3><p>The experimental local proxy supports DNS over HTTPS and built-in lists from 1Hosts, OISD, StevenBlack, and HaGeZi.</p><p class="feature-note">Clients need manual setup. System DNS stays unchanged.</p></article>
+</div>
+<aside class="scope-note" aria-labelledby="scope-title"><h3 id="scope-title">Know the filtering scope</h3><p>The current release does not block individual apps or pause their network connections. Per-process Network Extension filtering is not included. Only the Default profile is enforced; other profiles are organizational labels.</p><a class="text-link" href="https://github.com/momenbasel/puresnitch#what-it-does">Read the current capabilities <span aria-hidden="true">↗</span></a></aside>
 </section>
-
-<!-- FEATURES -->
-<section id="features" class="py-24 border-t border-coal-800/50">
-  <div class="max-w-7xl mx-auto px-6">
-    <div class="text-center mb-16">
-      <p class="text-ember-400 text-sm font-medium tracking-wider uppercase mb-3">Features</p>
-      <h2 class="font-display font-bold text-4xl md:text-5xl tracking-tight">Everything you'd expect.<br>Nothing you wouldn't.</h2>
-    </div>
-
-    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-      <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="w-11 h-11 rounded-xl bg-ember-500/15 border border-ember-500/30 flex items-center justify-center mb-4">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-        </div>
-        <h3 class="font-display font-semibold text-lg text-white">Network Monitor</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Live connections and process-level bandwidth with sorting and filtering. The map UI is present, but v0.2.1 does not perform live IP geolocation or per-connection byte accounting.</p>
-      </div>
-
-      <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="w-11 h-11 rounded-xl bg-ember-500/15 border border-ember-500/30 flex items-center justify-center mb-4">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
-        </div>
-        <h3 class="font-display font-semibold text-lg text-white">Rules Manager (LS-style)</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Browse, search, toggle and delete stored rules across All Rules, Active, Deny, Temporary and Unapproved categories. In v0.2.1, new persistent rules come only from DNS-proxy alerts; general add/import/export controls are not implemented.</p>
-      </div>
-
-      <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="w-11 h-11 rounded-xl bg-ember-500/15 border border-ember-500/30 flex items-center justify-center mb-4">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-        </div>
-        <h3 class="font-display font-semibold text-lg text-white">Connection Alerts</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Allow / Deny prompts for ask decisions from the manually configured DNS proxy. Passive app sockets are not paused; arbitrary per-process prompts require the non-shipping Network Extension build.</p>
-      </div>
-
-      <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="w-11 h-11 rounded-xl bg-ember-500/15 border border-ember-500/30 flex items-center justify-center mb-4">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        </div>
-        <h3 class="font-display font-semibold text-lg text-white">DNS over HTTPS</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Experimental loopback proxy with DoH to Cloudflare, Quad9, Google, or a custom HTTPS endpoint. Clients must be configured manually; system DNS is unchanged.</p>
-      </div>
-
-      <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="w-11 h-11 rounded-xl bg-ember-500/15 border border-ember-500/30 flex items-center justify-center mb-4">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-        </div>
-        <h3 class="font-display font-semibold text-lg text-white">Blocklists out of the box</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">1Hosts, OISD, StevenBlack and HaGeZi are included. Enabled built-in lists refresh at helper startup and on request. v0.2.1 cannot add custom blocklist URLs.</p>
-      </div>
-
-      <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="w-11 h-11 rounded-xl bg-ember-500/15 border border-ember-500/30 flex items-center justify-center mb-4">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        </div>
-        <h3 class="font-display font-semibold text-lg text-white">pfctl kernel-level blocking</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">A runtime <code class="font-mono">com.apple/puresnitch</code> anchor carries validated, host-wide deny rules for IPv4 / CIDR / port targets. PureSnitch does not rewrite the active main ruleset.</p>
-      </div>
-
-      <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="w-11 h-11 rounded-xl bg-ember-500/15 border border-ember-500/30 flex items-center justify-center mb-4">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
-        </div>
-        <h3 class="font-display font-semibold text-lg text-white">Organizational profiles</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Only Default is enforced in the shipping build. Home, Public Wi-Fi and Lockdown are stored labels; SSID-based switching is not implemented.</p>
-      </div>
-
-      <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="w-11 h-11 rounded-xl bg-ember-500/15 border border-ember-500/30 flex items-center justify-center mb-4">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-        <h3 class="font-display font-semibold text-lg text-white">Menubar status item</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">Live up/down throughput. 5-minute traffic graph. Recent activity. Denied-count badge. One-click mode picker.</p>
-      </div>
-
-      <div class="feature-card p-6 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="w-11 h-11 rounded-xl bg-ember-500/15 border border-ember-500/30 flex items-center justify-center mb-4">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7838" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </div>
-        <h3 class="font-display font-semibold text-lg text-white">Zero telemetry</h3>
-        <p class="text-coal-400 text-sm mt-2 leading-relaxed">No analytics SDK, crash reporter, or license check. No live IP-geolocation requests. Network access is limited to enabled blocklist refreshes and explicitly proxied DNS.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- HOW IT WORKS -->
-<section id="how" class="py-24 border-t border-coal-800/50">
-  <div class="max-w-6xl mx-auto px-6">
-    <div class="text-center mb-16">
-      <p class="text-ember-400 text-sm font-medium tracking-wider uppercase mb-3">How it works</p>
-      <h2 class="font-display font-bold text-4xl md:text-5xl tracking-tight">Three things move bytes.</h2>
-      <p class="text-coal-300 mt-4 max-w-2xl mx-auto">PureSnitch is a SwiftUI app talking over XPC to a small privileged daemon. The daemon does the actual work.</p>
-    </div>
-
-    <div class="grid md:grid-cols-3 gap-6">
-      <div class="p-7 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="text-ember-400 font-mono text-sm font-bold mb-3">01 / DNS</div>
-        <h3 class="font-display font-semibold text-xl text-white">Optional DNS proxy</h3>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">An experimental loopback proxy answers requests from manually configured clients. Blocklisted domains return NXDOMAIN; the rest forwards over DoH. PureSnitch does not install it as the macOS resolver.</p>
-      </div>
-      <div class="p-7 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="text-ember-400 font-mono text-sm font-bold mb-3">02 / pf</div>
-        <h3 class="font-display font-semibold text-xl text-white">pfctl anchor</h3>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">A runtime <code class="text-ember-300 font-mono">com.apple/puresnitch</code> sub-anchor carries Default-profile, host-wide deny rules for IPv4, CIDR and port targets. It does not add declarations to <code class="text-ember-300 font-mono">/etc/pf.conf</code>.</p>
-      </div>
-      <div class="p-7 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <div class="text-ember-400 font-mono text-sm font-bold mb-3">03 / proc</div>
-        <h3 class="font-display font-semibold text-xl text-white">Process observability</h3>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed"><code class="text-ember-300 font-mono">nettop</code> streams per-process bandwidth, <code class="text-ember-300 font-mono">lsof</code> snapshots active connections every 2s. Both feed the GUI's process list, map and graphs.</p>
-      </div>
-    </div>
-
-    <div class="mt-10 rounded-2xl border border-coal-800 bg-coal-950 overflow-x-auto">
-      <pre class="p-6 font-mono text-xs md:text-sm text-coal-200 leading-relaxed"><code>┌─────────────────────────────────────────────────────────┐
-│                     PureSnitch.app                      │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  SwiftUI GUI                                      │  │
-│  │  · Menubar status item  · Network Monitor window  │  │
-│  │  · Rules Manager       · Connection Alert popups  │  │
-│  └────────────────────────┬──────────────────────────┘  │
-│                           │ XPC (Mach service)          │
-│  ┌────────────────────────▼──────────────────────────┐  │
-│  │  PureSnitchHelper (root daemon)                   │  │
-│  │  · pfctl anchor   · DNS proxy   · DoH upstream    │  │
-│  │  · blocklist sync · nettop/lsof · SQLite store    │  │
-│  └───────────────────────────────────────────────────┘  │
-└────────────────────────────┬────────────────────────────┘
-                             │
-        ┌────────────────────▼────────────────────┐
-        │            macOS networking            │
-        │   pfctl  ·  DNS  ·  bpf  ·  ess  ·  …  │
-        └─────────────────────────────────────────┘</code></pre>
-    </div>
-  </div>
-</section>
-
-<!-- COMPARE -->
-<section id="compare" class="py-24 border-t border-coal-800/50">
-  <div class="max-w-6xl mx-auto px-6">
-    <div class="text-center mb-12">
-      <p class="text-ember-400 text-sm font-medium tracking-wider uppercase mb-3">Comparison</p>
-      <h2 class="font-display font-bold text-4xl md:text-5xl tracking-tight">PureSnitch vs the alternatives</h2>
-    </div>
-    <div class="overflow-x-auto rounded-2xl border border-coal-800">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="bg-coal-900/60 border-b border-coal-800 text-left">
-            <th class="p-4 font-display font-semibold text-white"></th>
-            <th class="p-4 font-display font-semibold text-ember-300">PureSnitch</th>
-            <th class="p-4 font-display font-semibold text-coal-200">Little Snitch</th>
-            <th class="p-4 font-display font-semibold text-coal-200">LuLu</th>
-            <th class="p-4 font-display font-semibold text-coal-200">macOS Firewall</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-coal-800/70">
-          <tr><td class="p-4 text-coal-200 font-medium">Price</td><td class="p-4 text-ember-300 font-medium">Free</td><td class="p-4 text-coal-300">Paid</td><td class="p-4 text-coal-300">Free</td><td class="p-4 text-coal-300">Bundled</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">License</td><td class="p-4 text-ember-300 font-medium">MIT, open source</td><td class="p-4 text-coal-300">Commercial</td><td class="p-4 text-coal-300">GPL, open source</td><td class="p-4 text-coal-300">Apple, closed</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">Traffic graph / map UI</td><td class="p-4 text-ember-300">no live geo</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-500">—</td><td class="p-4 text-coal-500">—</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">Rules browser</td><td class="p-4 text-ember-300">toggle/delete; alert-created rules</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-300">basic</td><td class="p-4 text-coal-500">—</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">DNS proxy + DoH</td><td class="p-4 text-ember-300">experimental, manual</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-500">—</td><td class="p-4 text-coal-500">—</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">Blocklists out of the box</td><td class="p-4 text-ember-300">1Hosts, OISD, StevenBlack, HaGeZi</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-500">—</td><td class="p-4 text-coal-500">—</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">pf-based IP/CIDR blocking</td><td class="p-4 text-ember-300">✓</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-300">n/a</td><td class="p-4 text-coal-300">basic</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">Per-process kernel filtering</td><td class="p-4 text-coal-300">gated (NE entitlement)</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-300">✓</td><td class="p-4 text-coal-500">—</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">Telemetry</td><td class="p-4 text-ember-300">none</td><td class="p-4 text-coal-300">none</td><td class="p-4 text-coal-300">none</td><td class="p-4 text-coal-300">n/a</td></tr>
-          <tr><td class="p-4 text-coal-200 font-medium">Auditable source</td><td class="p-4 text-ember-300">yes</td><td class="p-4 text-coal-300">no</td><td class="p-4 text-coal-300">yes</td><td class="p-4 text-coal-300">no</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="text-coal-400 text-sm mt-6 text-center max-w-3xl mx-auto">If per-process kernel filtering is a hard requirement today, use <a href="https://github.com/objective-see/LuLu" class="text-ember-400 hover:underline">LuLu</a> — it's free, open source and has the Network Extension entitlement. If you want the Little Snitch UI without buying a commercial license, PureSnitch is for you.</p>
-  </div>
-</section>
-
-<!-- SCREENSHOTS -->
-<section id="screenshots" class="py-24 border-t border-coal-800/50">
-  <div class="max-w-6xl mx-auto px-6">
-    <div class="text-center mb-14">
-      <p class="text-ember-400 text-sm font-medium tracking-wider uppercase mb-3">Screenshots</p>
-      <h2 class="font-display font-bold text-4xl md:text-5xl tracking-tight">A real Mac app.</h2>
-    </div>
-    <div class="grid md:grid-cols-2 gap-6">
-      <div class="rounded-2xl overflow-hidden border border-coal-800 bg-coal-900/40">
-        <img src="https://raw.githubusercontent.com/momenbasel/puresnitch/main/docs/screenshot-monitor.png" alt="Network Monitor" class="w-full">
-        <div class="p-5"><h3 class="font-display font-semibold text-white">Network Monitor</h3><p class="text-coal-400 text-sm mt-1">Process-level bandwidth, active connections, and summary pane. No live geolocation in v0.2.1.</p></div>
-      </div>
-      <div class="rounded-2xl overflow-hidden border border-coal-800 bg-coal-900/40">
-        <img src="https://raw.githubusercontent.com/momenbasel/puresnitch/main/docs/screenshot-rules.png" alt="Rules Manager" class="w-full">
-        <div class="p-5"><h3 class="font-display font-semibold text-white">Rules Manager</h3><p class="text-coal-400 text-sm mt-1">All Rules / Active / Deny / Temporary / Unapproved, Rule Groups, Blocklists.</p></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- INSTALL -->
-<section id="install" class="py-24 border-t border-coal-800/50">
-  <div class="max-w-4xl mx-auto px-6">
-    <div class="text-center mb-12">
-      <p class="text-ember-400 text-sm font-medium tracking-wider uppercase mb-3">Install</p>
-      <h2 class="font-display font-bold text-4xl md:text-5xl tracking-tight">Two minutes.</h2>
-    </div>
-    <div class="grid md:grid-cols-2 gap-5">
-      <div class="p-6 rounded-2xl border border-coal-800 bg-coal-900/50">
-        <h3 class="font-display font-semibold text-white text-lg mb-3">Homebrew</h3>
-        <pre class="rounded-xl bg-coal-950 p-4 font-mono text-sm text-coal-100 overflow-x-auto"><code>brew trust momenbasel/puresnitch
-brew install --cask momenbasel/puresnitch/puresnitch</code></pre>
-      </div>
-      <div class="p-6 rounded-2xl border border-coal-800 bg-coal-900/50">
-        <h3 class="font-display font-semibold text-white text-lg mb-3">Direct download</h3>
-        <p class="text-coal-300 text-sm mb-4">Signed and notarized DMG from the Releases page. Drag into <code class="font-mono text-ember-300">/Applications</code>.</p>
-        <a href="https://github.com/momenbasel/puresnitch/releases/latest" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-ember-500 hover:bg-ember-400 text-white font-medium transition">
-          Download .dmg
-        </a>
-      </div>
-    </div>
-    <div class="mt-6 p-5 rounded-2xl border border-coal-800/60 bg-coal-900/30 text-sm text-coal-300">
-      <span class="text-coal-100 font-semibold">First launch:</span> macOS will surface the privileged helper in
-      <span class="text-ember-300">System Settings → General → Login Items & Extensions</span>.
-      Toggle "PureSnitchHelper" on. PureSnitch never asks for your password during normal operation.
-    </div>
-    <div class="mt-6 p-5 rounded-2xl border border-coal-800/60 bg-coal-900/30">
-      <h4 class="font-display font-semibold text-white mb-2">Build from source</h4>
-      <pre class="rounded-xl bg-coal-950 p-4 font-mono text-xs md:text-sm text-coal-100 overflow-x-auto"><code>brew install xcodegen
-git clone https://github.com/momenbasel/puresnitch.git
-cd puresnitch
-xcodegen generate
-xcodebuild -project PureSnitch.xcodeproj -scheme PureSnitch \
-  -configuration Release -derivedDataPath build \
-  CODE_SIGN_IDENTITY=&quot;-&quot; \
-  CODE_SIGNING_REQUIRED=NO \
-  CODE_SIGNING_ALLOWED=NO \
-  build
-open build/Build/Products/Release/PureSnitch.app</code></pre>
-      <p class="text-coal-400 text-xs mt-3">This certificate-free build launches the UI only. Live monitoring and enforcement require the privileged helper from the signed release or your own Developer ID signing setup.</p>
-    </div>
-  </div>
-</section>
-
-<!-- FAQ -->
-<section id="faq" class="py-24 border-t border-coal-800/50">
-  <div class="max-w-4xl mx-auto px-6">
-    <div class="text-center mb-12">
-      <p class="text-ember-400 text-sm font-medium tracking-wider uppercase mb-3">FAQ</p>
-      <h2 class="font-display font-bold text-4xl md:text-5xl tracking-tight">Honest answers.</h2>
-    </div>
-    <div class="space-y-3">
-      <details class="group p-5 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <summary class="cursor-pointer font-display font-semibold text-white flex items-center justify-between">Is this a Little Snitch clone?<span class="text-ember-400 group-open:rotate-45 transition">+</span></summary>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">An independent open-source alternative with a deliberately similar UI. The blocking engine, DNS proxy and matcher are all written from scratch. No Little Snitch source, assets or proprietary plist formats are used. "Little Snitch" is a trademark of Objective Development Software GmbH; this project is not affiliated.</p>
-      </details>
-      <details class="group p-5 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <summary class="cursor-pointer font-display font-semibold text-white flex items-center justify-between">Does PureSnitch send my traffic anywhere?<span class="text-ember-400 group-open:rotate-45 transition">+</span></summary>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">PureSnitch has no telemetry, analytics, or phone-home service. It fetches enabled blocklists at helper startup and on request. DNS reaches a DoH upstream only for clients manually configured to use the experimental proxy. The current release makes no live IP-geolocation requests.</p>
-      </details>
-      <details class="group p-5 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <summary class="cursor-pointer font-display font-semibold text-white flex items-center justify-between">Why isn't per-process blocking at parity with Little Snitch?<span class="text-ember-400 group-open:rotate-45 transition">+</span></summary>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">Per-process blocking requires Apple's <code class="font-mono text-ember-300">com.apple.developer.networking.networkextension</code> entitlement and matching provisioning profiles. That path is not in the shipping build. Current <code class="font-mono text-ember-300">pf</code> rules are host-wide; DNS rules cover only manually configured proxy clients.</p>
-      </details>
-      <details class="group p-5 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <summary class="cursor-pointer font-display font-semibold text-white flex items-center justify-between">Will this run on Intel Macs?<span class="text-ember-400 group-open:rotate-45 transition">+</span></summary>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">Yes. v0.2.1 is a universal binary with arm64 and x86_64 slices and requires macOS 13 (Ventura) or newer.</p>
-      </details>
-      <details class="group p-5 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <summary class="cursor-pointer font-display font-semibold text-white flex items-center justify-between">Does it work alongside Pi-hole / AdGuard Home / NextDNS?<span class="text-ember-400 group-open:rotate-45 transition">+</span></summary>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">The experimental proxy accepts a custom DoH upstream, but each client must be configured to query the loopback proxy manually. PureSnitch does not alter system DNS or automatically layer itself over another resolver.</p>
-      </details>
-      <details class="group p-5 rounded-2xl border border-coal-800 bg-coal-900/40">
-        <summary class="cursor-pointer font-display font-semibold text-white flex items-center justify-between">Tailscale, WireGuard, ProtonVPN?<span class="text-ember-400 group-open:rotate-45 transition">+</span></summary>
-        <p class="text-coal-300 text-sm mt-3 leading-relaxed">The host-wide <code class="font-mono text-ember-300">pf</code> anchor can interact with VPN routing or other firewall rules, so test your rules with the VPN enabled. The optional DNS proxy stays on loopback and PureSnitch does not replace VPN-provided DNS.</p>
-      </details>
-    </div>
-  </div>
-</section>
-
-<!-- FOOTER CTA -->
-<section class="py-24 border-t border-coal-800/50">
-  <div class="max-w-3xl mx-auto px-6 text-center">
-    <img src="https://raw.githubusercontent.com/momenbasel/puresnitch/main/Resources/Assets.xcassets/AppIcon.appiconset/icon_256x256%402x.png" class="w-20 h-20 rounded-2xl mx-auto mb-6 animate-float" alt="">
-    <h2 class="font-display font-bold text-4xl md:text-5xl tracking-tight text-white">Take your Mac's outbound traffic back.</h2>
-    <p class="text-coal-300 mt-4 text-lg">PureSnitch is free. Read the source. Fork it. Audit it.</p>
-    <div class="flex flex-wrap justify-center gap-3 mt-8">
-      <a href="https://github.com/momenbasel/puresnitch/releases/latest" class="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-ember-500 hover:bg-ember-400 text-white font-medium glow-orange transition">
-        Download for macOS
-      </a>
-      <a href="https://github.com/momenbasel/puresnitch" class="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-coal-800 hover:bg-coal-700 border border-coal-700 text-white font-medium transition">
-        View source on GitHub
-      </a>
-    </div>
-  </div>
-</section>
-
-<footer class="py-12 border-t border-coal-800/50 text-sm text-coal-400">
-  <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
-    <div class="flex items-center gap-3">
-      <img src="https://raw.githubusercontent.com/momenbasel/puresnitch/main/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128%402x.png" class="w-8 h-8 rounded-lg" alt="">
-      <div>
-        <p class="text-coal-200 font-medium">PureSnitch</p>
-        <p class="text-xs">MIT licensed. © 2026 Moamen Basel.</p>
-      </div>
-    </div>
-    <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
-      <a href="https://github.com/momenbasel/puresnitch" class="hover:text-white transition">GitHub</a>
-      <a href="https://github.com/momenbasel/puresnitch/releases" class="hover:text-white transition">Releases</a>
-      <a href="https://github.com/momenbasel/puresnitch/issues" class="hover:text-white transition">Issues</a>
-      <a href="https://github.com/momenbasel/puresnitch/blob/main/CONTRIBUTING.md" class="hover:text-white transition">Contributing</a>
-      <a href="https://github.com/momenbasel/puresnitch/blob/main/LICENSE" class="hover:text-white transition">License</a>
-    </div>
-    <div class="flex items-center gap-2 text-xs">
-      <a href="../README.md" class="hover:text-white">EN</a>·
-      <a href="README.ar.md" class="hover:text-white">AR</a>·
-      <a href="README.es.md" class="hover:text-white">ES</a>·
-      <a href="README.ja.md" class="hover:text-white">JA</a>·
-      <a href="README.zh-Hans.md" class="hover:text-white">简</a>·
-      <a href="README.zh-Hant.md" class="hover:text-white">繁</a>
-    </div>
-  </div>
-  <p class="text-center text-xs text-coal-600 mt-6 px-6 max-w-4xl mx-auto">"Little Snitch" is a registered trademark of Objective Development Software GmbH. PureSnitch is an independent open-source project, not affiliated with or endorsed by Objective Development.</p>
-</footer>
-
+<section class="section rules-section" aria-labelledby="rules-title"><div class="container rules-layout">
+<figure class="rules-visual"><a href="screenshot-rules.png" aria-label="View full-size Rules Manager screenshot"><img src="screenshot-rules.png" width="1800" height="1169" loading="lazy" decoding="async" alt="PureSnitch Rules Manager interface with rule categories, groups, and blocklists"></a><figcaption>Rules Manager with demo data. General add, import, and export controls are not implemented in v0.2.2.</figcaption></figure>
+<div class="rules-copy"><h2 id="rules-title">Your rules,<br>in one place.</h2><p>Search, enable, disable, and delete stored rules. Browse active, denied, temporary, and unapproved entries.</p><p>Persistent rules can be created from alerts triggered by the manually configured DNS proxy. These prompts apply to proxy requests only.</p><a class="text-link" href="https://github.com/momenbasel/puresnitch">Explore the source <span aria-hidden="true">↗</span></a></div>
+</div></section>
+<section class="section container" id="install" aria-labelledby="install-title">
+<div class="section-heading"><p class="eyebrow">Get started</p><h2 id="install-title">Install. Approve. Observe.</h2><p>One universal app for Apple Silicon and Intel Macs running macOS 13 Ventura or later.</p></div>
+<div class="install-layout">
+<div class="download-panel"><h3>Download the app</h3><p>The signed, Apple-notarized disk image is available on GitHub Releases.</p><a class="button primary" href="https://github.com/momenbasel/puresnitch/releases/latest">Download for macOS <span aria-hidden="true">↗</span></a><ol class="setup-steps"><li><strong>Move to Applications.</strong> Open the DMG and drag PureSnitch into <code>/Applications</code> before launching it.</li><li><strong>Approve the helper.</strong> Follow the app’s banner to System Settings, General, Login Items &amp; Extensions, then Allow in the Background.</li><li><strong>Open Network Monitor.</strong> Traffic appears once the helper is approved. Enforcement is a separate, opt-in setting.</li></ol></div>
+<div class="brew-panel"><div class="code-heading"><h3>Use Homebrew</h3><button type="button" class="copy-button" data-copy="brew-command" aria-label="Copy Homebrew installation commands" hidden>Copy</button></div><pre><code id="brew-command">brew tap momenbasel/puresnitch
+brew trust --tap momenbasel/puresnitch
+brew install --cask puresnitch</code></pre><p class="copy-status" id="copy-status" role="status" aria-live="polite"></p><p>Homebrew requires the one-time tap trust step. The cask installs the signed release.</p><p>Already installed? Update with<br><code>brew upgrade --cask puresnitch</code></p><a class="text-link" href="https://github.com/momenbasel/puresnitch#build-from-source">Build from source <span aria-hidden="true">↗</span></a><p class="small">Unsigned builds open the interface only. Helper-backed monitoring requires the signed release or your own Developer ID signing.</p></div>
+</div></section>
+<section class="section container faq-section" id="faq" aria-labelledby="faq-title"><div class="section-heading"><h2 id="faq-title">Before you get started.</h2><p>Permissions, privacy, and the limits of the current release.</p></div>
+<div class="faq-list">
+<details><summary>Does PureSnitch send my network activity anywhere?</summary><p>The app has no telemetry, analytics SDK, or crash reporter. It fetches enabled blocklists at helper startup and on request. DNS requests go to a DoH upstream only when a client is manually configured to use the experimental proxy. There are no live IP-geolocation requests.</p></details>
+<details><summary>Why does it need a background helper?</summary><p>The privileged helper reads connection activity and manages optional packet-filter rules. macOS must approve it before traffic monitoring works. Install the app in <code>/Applications</code>, then follow the approval banner in the app. No relaunch is needed after approval.</p></details>
+<details><summary>Can I block one app without affecting another?</summary><p>No. The shipping build’s packet-filter rules are host-wide and IPv4-only. Per-process filtering requires a Network Extension build that is not distributed. DNS-proxy rules cover only requests explicitly sent to that proxy, and passive app connections are not paused for decisions.</p></details>
+<details><summary>Does it replace my system DNS or VPN?</summary><p>No. The experimental DNS proxy listens on loopback and needs manually configured clients. It does not change macOS’s system resolver. Host-wide firewall rules can interact with VPN routing or other firewall rules, so check your rules with the VPN enabled.</p></details>
+<details><summary>What if I’m upgrading from v0.1.0 or v0.2.0?</summary><p>Open the app and resolve the legacy firewall prompt. <strong>Decide Later</strong> preserves legacy rules unchanged. <strong>Keep On</strong> replaces them with the current supported rule set and is unavailable when that store is empty. <strong>Turn Off</strong> deliberately removes them. <a href="https://github.com/momenbasel/puresnitch/releases/tag/v0.2.2">Read the migration details before choosing.</a></p></details>
+<details><summary>How do I uninstall it cleanly?</summary><p>Turn Enforcement Off and choose Remove Helper in the app first. Then remove the app or run <code>brew uninstall --cask puresnitch</code>. Version 0.2.2 also includes cleanup safeguards for removal without that step. The root-owned rule database remains on disk; see the <a href="https://github.com/momenbasel/puresnitch/releases/tag/v0.2.2">release notes for legacy-state details</a>.</p></details>
+</div></section>
+<section class="container source-section" aria-labelledby="source-title"><img src="app-icon.png" width="72" height="72" alt="" loading="lazy"><div><h2 id="source-title">Open source. Open to inspection.</h2><p>MIT licensed, with the app, helper, and rule engine available on GitHub.</p></div><a class="button secondary" href="https://github.com/momenbasel/puresnitch">Explore the source <span aria-hidden="true">↗</span></a></section>
+</main>
+<footer class="container site-footer"><div class="footer-top"><a class="brand" href="#main">PureSnitch</a><nav aria-label="Project links"><a href="https://github.com/momenbasel/puresnitch/releases">Releases</a><a href="https://github.com/momenbasel/puresnitch/issues">Support</a><a href="https://github.com/momenbasel/puresnitch/blob/main/CONTRIBUTING.md">Contribute</a><a href="https://github.com/momenbasel/puresnitch/blob/main/LICENSE">License</a></nav></div><nav class="other-apps" aria-label="More Mac apps"><span>More Mac apps</span><a href="https://www.moamenbasel.com/PureMac/">PureMac</a><a href="https://www.moamenbasel.com/Phosphor/">Phosphor</a><a href="https://www.moamenbasel.com/pesty/">Pesty</a></nav><div class="footer-bottom"><p>© 2026 Moamen Basel</p><nav aria-label="README translations"><a href="https://github.com/momenbasel/puresnitch#readme" lang="en">English</a><a href="https://github.com/momenbasel/puresnitch/blob/main/docs/README.ar.md" lang="ar">العربية</a><a href="https://github.com/momenbasel/puresnitch/blob/main/docs/README.es.md" lang="es">Español</a><a href="https://github.com/momenbasel/puresnitch/blob/main/docs/README.ja.md" lang="ja">日本語</a><a href="https://github.com/momenbasel/puresnitch/blob/main/docs/README.zh-Hans.md" lang="zh-Hans">简体中文</a><a href="https://github.com/momenbasel/puresnitch/blob/main/docs/README.zh-Hant.md" lang="zh-Hant">繁體中文</a></nav></div></footer>
 </body>
 </html>
