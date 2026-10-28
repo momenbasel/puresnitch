@@ -127,7 +127,9 @@ public final class RuleStore: @unchecked Sendable {
             // The GitLab mirror still publishes daily, in Adblock syntax, which
             // BlocklistManager already parses.
             BlocklistInfo(name: "HaGeZi Multi Light", url: "https://gitlab.com/hagezi/mirror/-/raw/main/dns-blocklists/adblock/light.txt"),
-            BlocklistInfo(name: "URLhaus", url: "https://urlhaus.abuse.ch/downloads/hostfile/"),
+            // abuse.ch retired the keyless URLhaus downloads on 2026-10-21 and the
+            // hostfile answers 410. This list is published in the same hosts format.
+            BlocklistInfo(name: "NetAPI Compromised Domains", url: "https://netapi.com/api2/?method=compromised&dataset_type=url&format=hosts"),
             BlocklistInfo(name: "Anti-PopAds", url: "https://raw.githubusercontent.com/Yhonay/antipopads/master/hosts"),
             BlocklistInfo(name: "Peter Lowe", url: "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext")
         ]
@@ -136,7 +138,8 @@ public final class RuleStore: @unchecked Sendable {
 
     /// Seed rows are unique by name, so changing a default does not update an
     /// existing installation. Rewrite only the retired built-in URL; a user
-    /// supplied replacement is left untouched.
+    /// supplied replacement is left untouched. A retired list that was replaced
+    /// under a new name is removed instead, keeping the user's on/off choice.
     private func migrateDefaultBlocklistURLs() throws {
         let oldURL = "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/light.txt"
         let newURL = "https://gitlab.com/hagezi/mirror/-/raw/main/dns-blocklists/adblock/light.txt"
@@ -144,6 +147,21 @@ public final class RuleStore: @unchecked Sendable {
             sqlite3_bind_text(stmt, 1, newURL, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(stmt, 2, "HaGeZi Multi Light", -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(stmt, 3, oldURL, -1, SQLITE_TRANSIENT)
+        }
+
+        // seedBlocklists() has already inserted the replacement, and names are
+        // UNIQUE, so the dead URLhaus row is dropped rather than renamed.
+        let urlhausURL = "https://urlhaus.abuse.ch/downloads/hostfile/"
+        try execute("UPDATE blocklists SET enabled=(SELECT enabled FROM blocklists WHERE name=? AND url=?) WHERE name=? AND EXISTS (SELECT 1 FROM blocklists WHERE name=? AND url=?);") { stmt in
+            sqlite3_bind_text(stmt, 1, "URLhaus", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, urlhausURL, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, "NetAPI Compromised Domains", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 4, "URLhaus", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 5, urlhausURL, -1, SQLITE_TRANSIENT)
+        }
+        try execute("DELETE FROM blocklists WHERE name=? AND url=?;") { stmt in
+            sqlite3_bind_text(stmt, 1, "URLhaus", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, urlhausURL, -1, SQLITE_TRANSIENT)
         }
     }
 
