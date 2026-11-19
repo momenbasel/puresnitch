@@ -127,7 +127,7 @@ public final class RuleStore: @unchecked Sendable {
             // The GitLab mirror still publishes daily, in Adblock syntax, which
             // BlocklistManager already parses.
             BlocklistInfo(name: "HaGeZi Multi Light", url: "https://gitlab.com/hagezi/mirror/-/raw/main/dns-blocklists/adblock/light.txt"),
-            BlocklistInfo(name: "URLhaus", url: "https://urlhaus.abuse.ch/downloads/hostfile/"),
+            BlocklistInfo(name: "HaGeZi Threat Intelligence (mini)", url: "https://gitlab.com/hagezi/mirror/-/raw/main/dns-blocklists/adblock/tif.mini.txt"),
             BlocklistInfo(name: "Anti-PopAds", url: "https://raw.githubusercontent.com/Yhonay/antipopads/master/hosts"),
             BlocklistInfo(name: "Peter Lowe", url: "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext")
         ]
@@ -144,6 +144,20 @@ public final class RuleStore: @unchecked Sendable {
             sqlite3_bind_text(stmt, 1, newURL, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(stmt, 2, "HaGeZi Multi Light", -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(stmt, 3, oldURL, -1, SQLITE_TRANSIENT)
+        }
+
+        let urlhausURL = "https://urlhaus.abuse.ch/downloads/hostfile/"
+        let tifName = "HaGeZi Threat Intelligence (mini)"
+        try execute("UPDATE blocklists SET enabled=(SELECT enabled FROM blocklists WHERE name=? AND url=?) WHERE name=? AND EXISTS (SELECT 1 FROM blocklists WHERE name=? AND url=?);") { stmt in
+            sqlite3_bind_text(stmt, 1, "URLhaus", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, urlhausURL, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, tifName, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 4, "URLhaus", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 5, urlhausURL, -1, SQLITE_TRANSIENT)
+        }
+        try execute("DELETE FROM blocklists WHERE name=? AND url=?;") { stmt in
+            sqlite3_bind_text(stmt, 1, "URLhaus", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, urlhausURL, -1, SQLITE_TRANSIENT)
         }
     }
 
